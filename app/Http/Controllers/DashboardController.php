@@ -4,15 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetCategory;
-use Illuminate\View\View;
+use Illuminate\Contracts\View\View;
 
 class DashboardController extends Controller
 {
     public function index(): View
     {
+        $today = now()->startOfDay();
+        $expiryLimit = now()->addDays(60)->endOfDay();
+
         /*
         |--------------------------------------------------------------------------
-        | Statistik Asset
+        | Asset Summary
         |--------------------------------------------------------------------------
         */
 
@@ -33,23 +36,14 @@ class DashboardController extends Controller
             'maintenance'
         )->count();
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Kategori Asset
-        |--------------------------------------------------------------------------
-        */
-
         $totalCategories = AssetCategory::where(
             'is_active',
             true
         )->count();
 
-
         /*
         |--------------------------------------------------------------------------
-        | Asset yang akan habis masa sewa
-        | 0 - 30 hari dari hari ini
+        | Rental Expiry: Hari Ini - 60 Hari ke Depan
         |--------------------------------------------------------------------------
         */
 
@@ -59,55 +53,36 @@ class DashboardController extends Controller
             'vendor',
         ])
             ->whereNotNull('rental_end_date')
-            ->whereBetween(
-                'rental_end_date',
-                [
-                    now()->startOfDay(),
-                    now()->addDays(30)->endOfDay(),
-                ]
-            )
+            ->whereBetween('rental_end_date', [
+                $today,
+                $expiryLimit,
+            ])
             ->orderBy('rental_end_date')
             ->take(10)
             ->get();
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Jumlah asset yang masa sewanya <= 30 hari
-        |--------------------------------------------------------------------------
-        */
-
         $expiringAssetsCount = Asset::query()
             ->whereNotNull('rental_end_date')
-            ->whereBetween(
-                'rental_end_date',
-                [
-                    now()->startOfDay(),
-                    now()->addDays(30)->endOfDay(),
-                ]
-            )
+            ->whereBetween('rental_end_date', [
+                $today,
+                $expiryLimit,
+            ])
             ->count();
-
 
         /*
         |--------------------------------------------------------------------------
-        | Asset dengan masa sewa sudah habis
+        | Expired Rental
         |--------------------------------------------------------------------------
         */
 
         $expiredAssetsCount = Asset::query()
             ->whereNotNull('rental_end_date')
-            ->where(
-                'rental_end_date',
-                '<',
-                now()->startOfDay()
-            )
+            ->where('rental_end_date', '<', $today)
             ->count();
-
 
         /*
         |--------------------------------------------------------------------------
-        | Asset terbaru
+        | Recently Added Assets
         |--------------------------------------------------------------------------
         */
 
@@ -120,41 +95,32 @@ class DashboardController extends Controller
             ->take(10)
             ->get();
 
-
         /*
         |--------------------------------------------------------------------------
-        | Ringkasan asset berdasarkan kategori
+        | Category Summary
         |--------------------------------------------------------------------------
         */
 
-        $categorySummary = AssetCategory::query()
-            ->where('is_active', true)
+        $categorySummary = AssetCategory::where(
+            'is_active',
+            true
+        )
             ->withCount('assets')
             ->orderByDesc('assets_count')
             ->take(6)
             ->get();
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Kirim data ke View
-        |--------------------------------------------------------------------------
-        */
-
-        return view('dashboard', [
-            'totalAssets' => $totalAssets,
-            'availableAssets' => $availableAssets,
-            'assignedAssets' => $assignedAssets,
-            'maintenanceAssets' => $maintenanceAssets,
-            'totalCategories' => $totalCategories,
-
-            'expiringAssets' => $expiringAssets,
-            'expiringAssetsCount' => $expiringAssetsCount,
-            'expiredAssetsCount' => $expiredAssetsCount,
-
-            'recentAssets' => $recentAssets,
-
-            'categorySummary' => $categorySummary,
-        ]);
+        return view('dashboard', compact(
+            'totalAssets',
+            'availableAssets',
+            'assignedAssets',
+            'maintenanceAssets',
+            'totalCategories',
+            'expiringAssets',
+            'expiringAssetsCount',
+            'expiredAssetsCount',
+            'recentAssets',
+            'categorySummary'
+        ));
     }
 }

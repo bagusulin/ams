@@ -235,7 +235,7 @@
                 <div>
 
                     <p class="text-sm font-medium text-gray-500">
-                        Sewa ≤ 30 Hari
+                        Sewa ≤ 60 Hari
                     </p>
 
                     <p class="mt-2 text-3xl font-bold text-gray-900">
@@ -323,7 +323,7 @@
                         @if ($expiringAssetsCount > 0)
                             Terdapat
                             <strong>{{ $expiringAssetsCount }}</strong>
-                            asset yang akan berakhir dalam 30 hari.
+                            asset yang akan berakhir dalam 60 hari.
                         @endif
 
                     </p>
@@ -528,7 +528,7 @@
                     </h2>
 
                     <p class="mt-0.5 text-xs text-gray-500">
-                        Maksimal 30 hari dari hari ini
+                        Maksimal 60 hari dari hari ini
                     </p>
 
                 </div>

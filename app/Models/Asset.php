@@ -127,6 +127,21 @@ class Asset extends Model
     |--------------------------------------------------------------------------
     */
 
+    public function currentAssignment()
+    {
+        return $this->hasOne(
+            AssetAssignment::class,
+            'asset_id'
+            )->whereNull('returned_at')
+            ->latestOfMany();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rental Days Remaining
+    |--------------------------------------------------------------------------
+    */
+
     public function getRentalDaysRemainingAttribute(): ?int
     {
         if (!$this->rental_end_date) {
