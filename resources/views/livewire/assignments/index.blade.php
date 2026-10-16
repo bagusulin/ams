@@ -21,9 +21,10 @@
         </div>
 
 
+        @can('assignments.create')
         <button
             type="button"
-            wire:click="create"
+            wire:click="openCreate"
             class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
         >
 
@@ -42,6 +43,7 @@
             New Assignment
 
         </button>
+        @endcan
 
     </div>
 
@@ -62,7 +64,7 @@
 
 
     <!-- FORM -->
-
+    @can('assignments.create')
     @if ($showForm)
 
         <div class="mb-5 rounded-xl border border-blue-100 bg-white p-5 shadow-sm">
@@ -102,7 +104,7 @@
                                 Pilih Asset
                             </option>
 
-                            @foreach ($assets as $asset)
+                            @foreach ($availableAssets as $asset)
 
                                 <option value="{{ $asset->id }}">
 
@@ -267,6 +269,7 @@
         </div>
 
     @endif
+    @endcan
 
 
     <!-- ACTIVE ASSIGNMENT -->

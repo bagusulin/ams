@@ -33,7 +33,7 @@
 
 
     <!-- RETURN FORM -->
-
+    @can('returns.create')
     @if ($showForm)
 
         <div class="mb-5 rounded-xl border border-blue-100 bg-white p-5 shadow-sm">
@@ -48,7 +48,7 @@
 
 
             <form
-                wire:submit="save"
+                wire:submit="returnAsset({{ $detailId }})"
                 class="mt-5"
             >
 
@@ -62,11 +62,11 @@
 
                         <input
                             type="date"
-                            wire:model="returned_at"
+                            wire:model="return_date"
                             class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
                         >
 
-                        @error('returned_at')
+                        @error('return_date')
 
                             <p class="mt-1 text-xs text-red-500">
                                 {{ $message }}
@@ -99,7 +99,7 @@
 
                     <button
                         type="button"
-                        wire:click="cancel"
+                        wire:click="closeForm"
                         class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm"
                     >
                         Cancel
@@ -120,6 +120,7 @@
         </div>
 
     @endif
+    @endcan
 
 
     <!-- ACTIVE ASSET -->
@@ -216,14 +217,15 @@
 
 
                             <td class="px-5 py-4 text-right">
-
+                                @can('returns.create')
                                 <button
                                     type="button"
-                                    wire:click="openReturn({{ $assignment->id }})"
+                                    wire:click="openForm({{ $assignment->id }})"
                                     class="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                                 >
                                     Return
                                 </button>
+                                @endcan
 
                             </td>
 

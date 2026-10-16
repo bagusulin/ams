@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Gate;
 
 class Index extends Component
 {
@@ -21,6 +23,8 @@ class Index extends Component
 
     public bool $showForm = false;
     public bool $showDetail = false;
+
+    public string $search = '';
 
     public ?int $editingId = null;
     public ?int $detailId = null;
@@ -46,21 +50,57 @@ class Index extends Component
     {
         $this->assigned_at = now()->format('Y-m-d');
     }
-
+    
     public function render()
     {
-        $assignments = AssetAssignment::with([
-            'asset.category',
-            'asset.location',
-            'user',
-            'location',
-        ])
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('assignments.view');
+
+        $search = trim($this->search);
+
+        $assignments = AssetAssignment::query()
+            ->with([
+                'asset.category',
+                'asset.location',
+                'user',
+                'location',
+            ])
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
             ->whereNull('returned_at')
+            ->when($search !== '', function ($query) use ($search, $user) {
+                $like = '%' . $search . '%';
+
+                $query->where(function ($q) use ($like, $user) {
+                    $q->whereHas('asset', function ($assetQuery) use ($like, $user) {
+                        AssetAccess::assetsQuery($user, $assetQuery);
+
+                        $assetQuery->where(function ($fields) use ($like) {
+                            $fields
+                                ->where('asset_code', 'like', $like)
+                                ->orWhere('brand', 'like', $like)
+                                ->orWhere('model', 'like', $like)
+                                ->orWhere('serial_number', 'like', $like);
+                        });
+                    })->orWhereHas('user', function ($userQuery) use ($like) {
+                        $userQuery
+                            ->where('name', 'like', $like)
+                            ->orWhere('email', 'like', $like);
+                    });
+                });
+            })
             ->latest('assigned_at')
             ->latest('id')
             ->paginate(10);
 
-        $availableAssets = Asset::with('category')
+        $availableAssets = AssetAccess::assetsQuery(
+            $user,
+            Asset::query()->with('category')
+        )
             ->where('status', 'available')
             ->orderBy('asset_code')
             ->get();
@@ -82,8 +122,11 @@ class Index extends Component
         ));
     }
 
+
     public function openCreate(): void
     {
+        Gate::authorize('assignments.create');
+
         $this->resetForm();
 
         $this->showForm = true;
@@ -97,14 +140,26 @@ class Index extends Component
 
     public function openDetail(int $id): void
     {
-        $assignment = AssetAssignment::with([
-            'asset.category',
-            'asset.location',
-            'user',
-            'location',
-        ])->findOrFail($id);
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('assignments.view');
+
+        $assignment = AssetAssignment::query()
+            ->with([
+                'asset.category',
+                'asset.location',
+                'user',
+                'location',
+            ])
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
+            ->findOrFail($id);
 
         $this->detailId = $assignment->id;
+
         $this->showDetail = true;
     }
 
@@ -116,16 +171,22 @@ class Index extends Component
 
     public function save(): void
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+        Gate::authorize('assignments.create');
         $validated = $this->validate();
 
         try {
-            DB::transaction(function () use ($validated) {
+            DB::transaction(function () use ($validated, $user) {
 
                 /*
                  * Lock asset supaya tidak ada dua proses assignment
                  * terhadap asset yang sama secara bersamaan.
                  */
-                $asset = Asset::query()
+                $asset = AssetAccess::assetsQuery($user,
+                    Asset::query()->with('category')
+                )
                     ->lockForUpdate()
                     ->findOrFail($validated['asset_id']);
 

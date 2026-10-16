@@ -6,7 +6,11 @@ use App\Models\Asset;
 use App\Models\AssetCategory;
 use App\Models\Location;
 use App\Models\Vendor;
+use App\Support\Assets\AssetAccess;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -224,8 +228,9 @@ class Index extends Component
 
     public function create(): void
     {
-        $this->resetForm();
+        Gate::authorize('assets.create');
 
+        $this->resetForm();
         $this->showForm = true;
     }
 
@@ -238,12 +243,25 @@ class Index extends Component
 
     public function edit(int $id): void
     {
-        $asset = Asset::findOrFail($id);
+        $user = Auth::user();
+
+        Gate::authorize('assets.update');
+
+        $asset = AssetAccess::assetsQuery($user)
+            ->with(['category', 'location', 'vendor'])
+            ->findOrFail($id);
+
+        abort_unless(
+            AssetAccess::canManageCategory(
+                $user,
+                $asset->category?->code
+            ),
+            403
+        );
 
         $this->editingId = $asset->id;
 
         $this->asset_code = $asset->asset_code;
-
         $this->category_id = (string) $asset->category_id;
 
         $this->location_id = $asset->location_id
@@ -255,13 +273,10 @@ class Index extends Component
             : '';
 
         $this->brand = $asset->brand ?? '';
-
         $this->model = $asset->model ?? '';
-
         $this->serial_number = $asset->serial_number ?? '';
 
         $this->status = $asset->status;
-
         $this->condition = $asset->condition;
 
         $this->purchase_date = $asset->purchase_date
@@ -294,44 +309,52 @@ class Index extends Component
     |--------------------------------------------------------------------------
     */
 
+    
     public function save(): void
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Rapikan Input
-        |--------------------------------------------------------------------------
-        */
+        $user = Auth::user();
 
-        $this->asset_code = strtoupper(
-            trim($this->asset_code)
-        );
+        abort_unless($user, 403);
 
+        $permission = $this->editingId
+            ? 'assets.update'
+            : 'assets.create';
+
+        Gate::authorize($permission);
+
+        // Rapikan input.
+        $this->asset_code = strtoupper(trim($this->asset_code));
         $this->brand = trim($this->brand);
-
         $this->model = trim($this->model);
-
-        $this->serial_number = trim(
-            $this->serial_number
-        );
-
+        $this->serial_number = trim($this->serial_number);
         $this->notes = trim($this->notes);
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Validate
-        |--------------------------------------------------------------------------
-        */
-
+        // Validasi field sesuai rules() yang sudah ada.
         $validated = $this->validate();
 
+        // Pastikan kategori benar-benar ada.
+        $category = AssetCategory::query()
+            ->findOrFail($validated['category_id']);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Convert Empty Values
-        |--------------------------------------------------------------------------
-        */
+        // Kategori tidak aktif tidak boleh dipakai untuk menyimpan.
+        if (! $category->is_active) {
+            throw ValidationException::withMessages([
+                'category_id' => 'Kategori aset tidak aktif.',
+            ]);
+        }
 
+        // Cek kategori sesuai role Admin, IT, atau PPI.
+        if (! AssetAccess::canManageCategory(
+            $user,
+            $category->code
+        )) {
+            throw ValidationException::withMessages([
+                'category_id' =>
+                    'Anda tidak memiliki akses untuk mengelola kategori aset ini.',
+            ]);
+        }
+
+        // Konversi string kosong menjadi null.
         $validated['location_id'] =
             $validated['location_id'] ?: null;
 
@@ -352,17 +375,17 @@ class Index extends Component
                 ? $validated['rental_cost']
                 : null;
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update
-        |--------------------------------------------------------------------------
-        */
-
         if ($this->editingId) {
+            // Hanya aset dalam cakupan role yang boleh diubah.
+            $asset = AssetAccess::assetsQuery($user)
+                ->findOrFail($this->editingId);
 
-            $asset = Asset::findOrFail(
-                $this->editingId
+            abort_unless(
+                AssetAccess::canManageCategory(
+                    $user,
+                    $asset->category?->code
+                ),
+                403
             );
 
             $asset->update($validated);
@@ -371,16 +394,7 @@ class Index extends Component
                 'success',
                 'Asset berhasil diperbarui.'
             );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create
-        |--------------------------------------------------------------------------
-        */
-
-        else {
-
+        } else {
             Asset::create($validated);
 
             session()->flash(
@@ -389,20 +403,21 @@ class Index extends Component
             );
         }
 
-
         $this->resetForm();
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Detail
-    |--------------------------------------------------------------------------
-    */
-
     public function show(int $id): void
     {
-        Asset::findOrFail($id);
+        $user = Auth::user();
+
+        abort_unless(
+            $user && Gate::forUser($user)->allows('assets.view'),
+            403
+        );
+
+        AssetAccess::assetsQuery($user)
+            ->findOrFail($id);
 
         $this->detailId = $id;
 
@@ -426,7 +441,20 @@ class Index extends Component
 
     public function archive(int $id): void
     {
-        $asset = Asset::findOrFail($id);
+        $user = Auth::user();
+
+        Gate::authorize('assets.delete');
+
+        $asset = AssetAccess::assetsQuery($user)
+            ->findOrFail($id);
+
+        abort_unless(
+            AssetAccess::canManageCategory(
+                $user,
+                $asset->category?->code
+            ),
+            403
+        );
 
         $asset->delete();
 
@@ -501,18 +529,23 @@ class Index extends Component
 
     public function render()
     {
+        $user = Auth::user();
         /*
         |--------------------------------------------------------------------------
         | Assets
         |--------------------------------------------------------------------------
         */
 
-        $assets = Asset::query()
-            ->with([
+        Gate::authorize('assets.view');
+
+        $assets = AssetAccess::assetsQuery(
+            $user,
+            Asset::query()->with([
                 'category',
                 'location',
                 'vendor',
             ])
+        )
             ->when(
                 $this->search !== '',
                 function ($query) {
@@ -583,7 +616,7 @@ class Index extends Component
         |--------------------------------------------------------------------------
         */
 
-        $categories = AssetCategory::query()
+        $categories = AssetAccess::categoriesQueryFor($user)
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -608,11 +641,14 @@ class Index extends Component
         */
 
         $detailAsset = $this->showDetail && $this->detailId
-            ? Asset::with([
-                'category',
-                'location',
-                'vendor',
-            ])->find($this->detailId)
+            ? AssetAccess::assetsQuery(
+                $user,
+                Asset::query()->with([
+                    'category',
+                    'location',
+                    'vendor',
+                ])
+            )->find($this->detailId)
             : null;
 
 

@@ -1,4 +1,4 @@
-@props(['showTeam' => true])
+@props(['showTeam' => false])
 
 <flux:dropdown position="bottom" align="start">
     <button type="button" class="group flex w-full items-center rounded-lg p-1 hover:bg-zinc-800/5 dark:hover:bg-white/10" data-test="sidebar-menu-button">

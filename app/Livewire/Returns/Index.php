@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Returns;
 
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Gate;
 use App\Models\AssetAssignment;
 use App\Models\AssetHistory;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +17,8 @@ class Index extends Component
     use WithPagination;
 
     protected $paginationTheme = 'tailwind';
+
+    public string $search = '';
 
     /*
     |--------------------------------------------------------------------------
@@ -74,15 +78,47 @@ class Index extends Component
     | Render
     |--------------------------------------------------------------------------
     */
+    
     public function render()
     {
-        $assignments = AssetAssignment::with([
-            'asset.category',
-            'asset.location',
-            'user',
-            'location',
-        ])
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('returns.view');
+
+        $search = trim($this->search);
+
+        $assignments = AssetAssignment::query()
+            ->with([
+                'asset.category',
+                'asset.location',
+                'user',
+                'location',
+            ])
             ->whereNull('returned_at')
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $like = '%' . $search . '%';
+
+                $query->where(function ($q) use ($like) {
+                    $q->whereHas('asset', function ($assetQuery) use ($like) {
+                        $assetQuery->where(function ($fields) use ($like) {
+                            $fields
+                                ->where('asset_code', 'like', $like)
+                                ->orWhere('brand', 'like', $like)
+                                ->orWhere('model', 'like', $like)
+                                ->orWhere('serial_number', 'like', $like);
+                        });
+                    })->orWhereHas('user', function ($userQuery) use ($like) {
+                        $userQuery
+                            ->where('name', 'like', $like)
+                            ->orWhere('email', 'like', $like);
+                    });
+                });
+            })
             ->latest('assigned_at')
             ->latest('id')
             ->paginate(10);
@@ -95,6 +131,12 @@ class Index extends Component
         );
     }
 
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+
     /*
     |--------------------------------------------------------------------------
     | Buka Form Return
@@ -102,8 +144,18 @@ class Index extends Component
     */
     public function openForm(int $id): void
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('returns.create');
+
         $assignment = AssetAssignment::query()
+            ->with('asset.category')
             ->whereNull('returned_at')
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
             ->findOrFail($id);
 
         $this->detailId = $assignment->id;
@@ -140,17 +192,25 @@ class Index extends Component
     */
     public function openDetail(int $id): void
     {
-        AssetAssignment::with([
-            'asset.category',
-            'asset.location',
-            'user',
-            'location',
-        ])
-            ->whereNull('returned_at')
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('returns.view');
+
+        $assignment = AssetAssignment::query()
+            ->with([
+                'asset.category',
+                'asset.location',
+                'user',
+                'location',
+            ])
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
             ->findOrFail($id);
 
-        $this->detailId = $id;
-
+        $this->detailId = $assignment->id;
         $this->showDetail = true;
     }
 
@@ -173,65 +233,46 @@ class Index extends Component
     | Proses Return Asset
     |--------------------------------------------------------------------------
     */
+    
     public function returnAsset(int $assignmentId): void
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Validasi Form
-        |--------------------------------------------------------------------------
-        */
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('returns.create');
+
         $validated = $this->validate();
 
         try {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Transaction
-            |--------------------------------------------------------------------------
-            |
-            | Semua proses return harus berhasil seluruhnya.
-            | Jika salah satu gagal, semuanya di-rollback.
-            |
-            */
-            DB::transaction(function () use ($assignmentId, $validated) {
-
-                /*
-                |--------------------------------------------------------------------------
-                | Lock Assignment
-                |--------------------------------------------------------------------------
-                */
+            DB::transaction(function () use ($assignmentId, $validated, $user) {
+                // Ambil dan kunci assignment yang asetnya boleh diakses.
                 $assignment = AssetAssignment::query()
+                    ->with('asset.category')
+                    ->whereHas('asset', function ($assetQuery) use ($user) {
+                        AssetAccess::assetsQuery($user, $assetQuery);
+                    })
                     ->lockForUpdate()
                     ->findOrFail($assignmentId);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Pastikan belum pernah dikembalikan
-                |--------------------------------------------------------------------------
-                */
                 if ($assignment->returned_at !== null) {
                     throw ValidationException::withMessages([
                         'return_date' => 'Assignment ini sudah dikembalikan.',
                     ]);
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | Lock Asset
-                |--------------------------------------------------------------------------
-                |
-                | Mencegah asset diproses bersamaan dari dua request.
-                |
-                */
                 $asset = $assignment->asset()
+                    ->with('category')
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                /*
-                |--------------------------------------------------------------------------
-                | Simpan nilai lama untuk History
-                |--------------------------------------------------------------------------
-                */
+                if (! AssetAccess::canManageCategory(
+                    $user,
+                    $asset->category?->code
+                )) {
+                    abort(403);
+                }
+
                 $oldValues = [
                     'status' => $asset->status,
                     'location_id' => $asset->location_id,
@@ -239,104 +280,45 @@ class Index extends Component
                     'user_id' => $assignment->user_id,
                 ];
 
-                /*
-                |--------------------------------------------------------------------------
-                | Update Assignment
-                |--------------------------------------------------------------------------
-                */
                 $assignment->update([
                     'returned_at' => $validated['return_date'],
-                    'notes' => $validated['notes']
-                        ?: $assignment->notes,
+                    'notes' => $validated['notes'] ?: $assignment->notes,
                 ]);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Update Status Asset
-                |--------------------------------------------------------------------------
-                |
-                | Setelah dikembalikan, asset menjadi available.
-                |
-                */
+                // Aset kembali tersedia setelah proses return.
                 $asset->update([
                     'status' => 'available',
                 ]);
 
-                /*
-                |--------------------------------------------------------------------------
-                | Ambil data asset terbaru
-                |--------------------------------------------------------------------------
-                */
                 $freshAsset = $asset->fresh();
 
-                /*
-                |--------------------------------------------------------------------------
-                | Simpan History
-                |--------------------------------------------------------------------------
-                */
                 AssetHistory::create([
                     'asset_id' => $asset->id,
-
                     'user_id' => Auth::id(),
-
                     'action' => 'returned',
-
-                    'description' =>
-                        'Asset dikembalikan dari assignment.',
-
+                    'description' => 'Asset dikembalikan dari assignment.',
                     'old_values' => $oldValues,
-
                     'new_values' => [
                         'status' => $freshAsset->status,
-
-                        'returned_at' =>
-                            $assignment->returned_at?->format('Y-m-d'),
-
-                        'assignment_id' =>
-                            $assignment->id,
-
-                        'user_id' =>
-                            $assignment->user_id,
+                        'returned_at' => $assignment->returned_at?->format('Y-m-d'),
+                        'assignment_id' => $assignment->id,
+                        'user_id' => $assignment->user_id,
                     ],
                 ]);
             });
 
-            /*
-            |--------------------------------------------------------------------------
-            | Tutup Form
-            |--------------------------------------------------------------------------
-            */
             $this->closeForm();
+            $this->resetPage();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Pesan sukses
-            |--------------------------------------------------------------------------
-            */
             session()->flash(
                 'success',
                 'Asset berhasil dikembalikan.'
             );
 
         } catch (ValidationException $e) {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Validation error
-            |--------------------------------------------------------------------------
-            |
-            | Biarkan Livewire menampilkan pesan validasi.
-            |
-            */
             throw $e;
 
         } catch (\Throwable $e) {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Error lainnya
-            |--------------------------------------------------------------------------
-            */
             report($e);
 
             session()->flash(
@@ -345,4 +327,5 @@ class Index extends Component
             );
         }
     }
+
 }

@@ -23,27 +23,29 @@
         </div>
 
 
-        <button
-            type="button"
-            wire:click="create"
-            class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-        >
+        @can('assets.create')
+                <button
+                    type="button"
+                    wire:click="create"
+                    class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                >
 
-            <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-            >
-                <path d="M12 5v14"/>
-                <path d="M5 12h14"/>
-            </svg>
+                <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                >
+                    <path d="M12 5v14"/>
+                    <path d="M5 12h14"/>
+                </svg>
 
-            Add Asset
+                Add Asset
 
-        </button>
+            </button>
+        @endcan
 
     </div>
 
@@ -200,7 +202,10 @@
     <!-- FORM -->
     <!-- ===================================================== -->
 
-    @if ($showForm)
+    @if ($showForm && (
+        auth()->user()->can('assets.create')
+        || ($editingId && auth()->user()->can('assets.update'))
+    ))
 
         <div class="mb-5 rounded-xl border border-blue-100 bg-white p-5 shadow-sm">
 
@@ -927,53 +932,56 @@
 
                                     <!-- EDIT -->
 
-                                    <button
-                                        type="button"
-                                        wire:click="edit({{ $asset->id }})"
-                                        title="Edit"
-                                        class="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
-                                    >
+                                    @can('assets.update')
+                                        <button
+                                                type="button"
+                                                wire:click="edit({{ $asset->id }})"
+                                                title="Edit"
+                                                class="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                                            >
 
-                                        <svg
-                                            width="15"
-                                            height="15"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path d="M12 20h9"/>
-                                            <path d="M16.5 3.5a2.1 2.1 0 013 3L8 18l-4 1 1-4Z"/>
-                                        </svg>
-
-                                    </button>
+                                            <svg
+                                                width="15"
+                                                height="15"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path d="M12 20h9"/>
+                                                <path d="M16.5 3.5a2.1 2.1 0 013 3L8 18l-4 1 1-4Z"/>
+                                            </svg>
+                                        </button>
+                                    @endcan
 
 
                                     <!-- ARCHIVE -->
 
-                                    <button
-                                        type="button"
-                                        wire:click="archive({{ $asset->id }})"
-                                        wire:confirm="Archive asset {{ $asset->asset_code }}?"
-                                        title="Archive"
-                                        class="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                                    >
-
-                                        <svg
-                                            width="15"
-                                            height="15"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
+                                    @can('assets.delete')
+                                        <button
+                                            type="button"
+                                            wire:click="archive({{ $asset->id }})"
+                                            wire:confirm="Archive asset {{ $asset->asset_code }}?"
+                                            title="Archive"
+                                            class="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                                         >
-                                            <path d="M3 6h18"/>
-                                            <path d="M5 6l1 14h12l1-14"/>
-                                            <path d="M9 10h6"/>
-                                            <path d="M10 14h4"/>
-                                        </svg>
 
-                                    </button>
+                                            <svg
+                                                width="15"
+                                                height="15"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path d="M3 6h18"/>
+                                                <path d="M5 6l1 14h12l1-14"/>
+                                                <path d="M9 10h6"/>
+                                                <path d="M10 14h4"/>
+                                            </svg>
+
+                                        </button>
+                                    @endcan
 
                                 </div>
 
