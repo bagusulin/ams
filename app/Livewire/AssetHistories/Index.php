@@ -5,6 +5,9 @@ namespace App\Livewire\AssetHistories;
 use App\Models\AssetHistory;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class Index extends Component
 {
@@ -19,51 +22,40 @@ class Index extends Component
 
     public function render()
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('asset-history.view');
+
         $histories = AssetHistory::query()
             ->with([
-                'asset',
+                'asset.category',
                 'user',
             ])
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
             ->when(
                 $this->search !== '',
                 function ($query) {
+                    $search = '%' . trim($this->search) . '%';
 
-                    $search = '%' . $this->search . '%';
-
-                    $query->where(function ($query) use ($search) {
-
-                        $query
-                            ->where(
-                                'action',
-                                'like',
-                                $search
-                            )
-                            ->orWhere(
-                                'description',
-                                'like',
-                                $search
-                            )
-                            ->orWhereHas(
-                                'asset',
-                                function ($query) use ($search) {
-                                    $query->where(
-                                        'asset_code',
-                                        'like',
-                                        $search
-                                    );
-                                }
-                            )
-                            ->orWhereHas(
-                                'user',
-                                function ($query) use ($search) {
-                                    $query->where(
-                                        'name',
-                                        'like',
-                                        $search
-                                    );
-                                }
-                            );
-
+                    $query->where(function ($q) use ($search) {
+                        $q->where('action', 'like', $search)
+                            ->orWhere('description', 'like', $search)
+                            ->orWhereHas('asset', function ($assetQuery) use ($search) {
+                                $assetQuery->where(function ($fields) use ($search) {
+                                    $fields
+                                        ->where('asset_code', 'like', $search)
+                                        ->orWhere('brand', 'like', $search)
+                                        ->orWhere('model', 'like', $search)
+                                        ->orWhere('serial_number', 'like', $search);
+                                });
+                            })
+                            ->orWhereHas('user', function ($userQuery) use ($search) {
+                                $userQuery->where('name', 'like', $search);
+                            });
                     });
                 }
             )
@@ -77,4 +69,5 @@ class Index extends Component
             ]
         );
     }
+
 }

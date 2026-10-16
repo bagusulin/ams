@@ -8,6 +8,8 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
 
 class AssignmentsExport implements
     FromCollection,
@@ -47,8 +49,18 @@ class AssignmentsExport implements
         */
 
         if ($this->type === 'active') {
-
-            $query->whereNull('returned_at');
+            $user = Auth::user();
+            abort_unless($user, 403);
+            $query = AssetAssignment::query()
+                ->with([
+                    'asset.category',
+                    'asset.location',
+                    'user',
+                    'location',
+                ]);
+            $query->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            });
 
         } else {
 

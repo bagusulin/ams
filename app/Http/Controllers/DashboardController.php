@@ -4,54 +4,50 @@ namespace App\Http\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetCategory;
+use App\Support\Assets\AssetAccess;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
     public function index(): View
     {
-        $today = now()->startOfDay();
-        $expiryLimit = now()->addDays(60)->endOfDay();
+        $user = Auth::user();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Asset Summary
-        |--------------------------------------------------------------------------
-        */
+        abort_unless($user, 403);
 
-        $totalAssets = Asset::count();
+        Gate::authorize('dashboard.view');
 
-        $availableAssets = Asset::where(
-            'status',
-            'available'
-        )->count();
+        // Semua query aset dashboard mengikuti cakupan role.
+        $assetsQuery = fn () => AssetAccess::assetsQuery(
+            $user,
+            Asset::query()
+        );
 
-        $assignedAssets = Asset::where(
-            'status',
-            'assigned'
-        )->count();
+        $today = today();
+        $expiryLimit = today()->addDays(60)->endOfDay();
 
-        $maintenanceAssets = Asset::where(
-            'status',
-            'maintenance'
-        )->count();
+        $totalAssets = $assetsQuery()->count();
 
-        $totalCategories = AssetCategory::where(
-            'is_active',
-            true
-        )->count();
+        $availableAssets = $assetsQuery()
+            ->where('status', 'available')
+            ->count();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Rental Expiry: Hari Ini - 60 Hari ke Depan
-        |--------------------------------------------------------------------------
-        */
+        $assignedAssets = $assetsQuery()
+            ->where('status', 'assigned')
+            ->count();
 
-        $expiringAssets = Asset::with([
-            'category',
-            'location',
-            'vendor',
-        ])
+        $maintenanceAssets = $assetsQuery()
+            ->where('status', 'maintenance')
+            ->count();
+
+        $totalCategories = AssetAccess::categoriesQueryFor($user)
+            ->where('is_active', true)
+            ->count();
+
+        $expiringAssets = $assetsQuery()
+            ->with(['category', 'location', 'vendor'])
             ->whereNotNull('rental_end_date')
             ->whereBetween('rental_end_date', [
                 $today,
@@ -61,7 +57,7 @@ class DashboardController extends Controller
             ->take(10)
             ->get();
 
-        $expiringAssetsCount = Asset::query()
+        $expiringAssetsCount = $assetsQuery()
             ->whereNotNull('rental_end_date')
             ->whereBetween('rental_end_date', [
                 $today,
@@ -69,43 +65,23 @@ class DashboardController extends Controller
             ])
             ->count();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Expired Rental
-        |--------------------------------------------------------------------------
-        */
-
-        $expiredAssetsCount = Asset::query()
+        $expiredAssetsCount = $assetsQuery()
             ->whereNotNull('rental_end_date')
-            ->where('rental_end_date', '<', $today)
+            ->whereDate('rental_end_date', '<', $today)
             ->count();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Recently Added Assets
-        |--------------------------------------------------------------------------
-        */
-
-        $recentAssets = Asset::with([
-            'category',
-            'location',
-            'vendor',
-        ])
+        $recentAssets = $assetsQuery()
+            ->with(['category', 'location', 'vendor'])
             ->latest('created_at')
             ->take(10)
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Category Summary
-        |--------------------------------------------------------------------------
-        */
-
-        $categorySummary = AssetCategory::where(
-            'is_active',
-            true
-        )
-            ->withCount('assets')
+        $categorySummary = AssetAccess::categoriesQueryFor($user)
+            ->where('is_active', true)
+            ->withCount([
+                'assets' => fn ($query) =>
+                    AssetAccess::assetsQuery($user, $query),
+            ])
             ->orderByDesc('assets_count')
             ->take(6)
             ->get();

@@ -41,7 +41,7 @@
                 Kelola riwayat dan status maintenance asset.
             </p>
         </div>
-
+        @can('maintenances.create')
         <button
             type="button"
             wire:click="openCreate"
@@ -61,6 +61,7 @@
 
             Tambah Maintenance
         </button>
+        @endcan
 
     </div>
 
@@ -252,14 +253,16 @@
                                         class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                                         Detail
                                     </button>
-
+                                    @can('maintenances.update')
                                     <button
                                         type="button"
                                         wire:click="openEdit({{ $maintenance->id }})"
                                         class="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50">
                                         Edit
                                     </button>
+                                    @endcan
 
+                                    @can('maintenances.delete')
                                     <button
                                         type="button"
                                         wire:click="deleteMaintenance({{ $maintenance->id }})"
@@ -267,6 +270,7 @@
                                         class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50">
                                         Hapus
                                     </button>
+                                    @endcan
 
                                 </div>
 
@@ -320,9 +324,8 @@
     {{-- ========================================================= --}}
     {{-- FORM MODAL --}}
     {{-- ========================================================= --}}
-
+    @canany(['maintenances.create', 'maintenances.update'])
     @if ($showForm)
-
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
 
             <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
@@ -653,12 +656,13 @@
         </div>
 
     @endif
+    @endcanany
 
 
     {{-- ========================================================= --}}
     {{-- DETAIL MODAL --}}
     {{-- ========================================================= --}}
-
+    
     @if ($showDetail && $detailMaintenance)
 
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">

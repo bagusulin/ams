@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Locations;
 
+use Illuminate\Support\Facades\Gate;
 use App\Models\Location;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -96,6 +97,7 @@ class Index extends Component
 
     public function create(): void
     {
+        Gate::authorize('locations.create');
         $this->resetForm();
 
         $this->showForm = true;
@@ -110,6 +112,7 @@ class Index extends Component
 
     public function edit(int $id): void
     {
+        Gate::authorize('locations.edit');
         $location = Location::findOrFail($id);
 
         $this->editingId = $location->id;
@@ -136,6 +139,12 @@ class Index extends Component
 
     public function save(): void
     {
+        Gate::authorize(
+            $this->editingId
+                ? 'locations.update'
+                : 'locations.create'
+        );
+
         /*
         |--------------------------------------------------------------------------
         | Rapikan input
@@ -206,6 +215,7 @@ class Index extends Component
 
     public function toggleStatus(int $id): void
     {
+        Gate::authorize('locations.update');
         $location = Location::findOrFail($id);
 
         $location->update([
@@ -227,6 +237,7 @@ class Index extends Component
 
     public function delete(int $id): void
     {
+        Gate::authorize('locations.delete');
         $location = Location::findOrFail($id);
 
         /*

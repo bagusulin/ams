@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Vendors;
 
+use Illuminate\Support\Facades\Gate;
 use App\Models\Vendor;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -108,6 +109,7 @@ class Index extends Component
 
     public function create(): void
     {
+        Gate::authorize('vendors.create');
         $this->resetForm();
 
         $this->showForm = true;
@@ -122,6 +124,7 @@ class Index extends Component
 
     public function edit(int $id): void
     {
+        Gate::authorize('vendors.edit');
         $vendor = Vendor::findOrFail($id);
 
         $this->editingId = $vendor->id;
@@ -152,6 +155,11 @@ class Index extends Component
 
     public function save(): void
     {
+        Gate::authorize(
+            $this->editingId
+                ? 'vendors.update'
+                : 'vendors.create'
+        );
         // Rapikan input
         $this->name = trim($this->name);
 
@@ -216,6 +224,7 @@ class Index extends Component
 
     public function toggleStatus(int $id): void
     {
+        Gate::authorize('vendors.update');
         $vendor = Vendor::findOrFail($id);
 
         $vendor->update([
@@ -237,6 +246,7 @@ class Index extends Component
 
     public function delete(int $id): void
     {
+        Gate::authorize('vendors.delete');
         $vendor = Vendor::findOrFail($id);
 
         /*

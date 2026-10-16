@@ -8,6 +8,8 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
 
 class MaintenancesExport implements
     FromCollection,
@@ -24,12 +26,18 @@ class MaintenancesExport implements
 
     public function collection(): Collection
     {
+        $user = Auth::user();
+        abort_unless($user, 403);
         $query = AssetMaintenance::query()
             ->with([
                 'asset.category',
                 'asset.location',
                 'asset.vendor',
             ]);
+
+        $query->whereHas('asset', function ($assetQuery) use ($user) {
+            AssetAccess::assetsQuery($user, $assetQuery);
+        });
 
         /*
         |--------------------------------------------------------------------------

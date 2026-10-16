@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Gate;
 
 class Index extends Component
 {
@@ -124,25 +126,37 @@ class Index extends Component
     | Render
     |--------------------------------------------------------------------------
     */
+    
     public function render()
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('maintenances.view');
+
         $maintenances = AssetMaintenance::query()
             ->with([
                 'asset.category',
                 'asset.location',
             ])
-            ->when($this->search, function ($query) {
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
+            ->when($this->search !== '', function ($query) {
                 $search = '%' . trim($this->search) . '%';
 
                 $query->where(function ($q) use ($search) {
                     $q->where('type', 'like', $search)
                         ->orWhere('description', 'like', $search)
                         ->orWhereHas('asset', function ($assetQuery) use ($search) {
-                            $assetQuery
-                                ->where('asset_code', 'like', $search)
-                                ->orWhere('brand', 'like', $search)
-                                ->orWhere('model', 'like', $search)
-                                ->orWhere('serial_number', 'like', $search);
+                            $assetQuery->where(function ($fields) use ($search) {
+                                $fields
+                                    ->where('asset_code', 'like', $search)
+                                    ->orWhere('brand', 'like', $search)
+                                    ->orWhere('model', 'like', $search)
+                                    ->orWhere('serial_number', 'like', $search);
+                            });
                         });
                 });
             })
@@ -156,20 +170,14 @@ class Index extends Component
             ->latest('id')
             ->paginate(10);
 
-        /*
-         * Saat create:
-         * hanya asset available.
-         *
-         * Saat edit:
-         * asset yang sedang digunakan oleh maintenance tersebut
-         * tetap ditampilkan walaupun status asset = maintenance.
-         */
         $currentAssetId = $this->asset_id
             ? (int) $this->asset_id
             : null;
 
-        $availableAssets = Asset::query()
-            ->with('category')
+        $availableAssets = AssetAccess::assetsQuery(
+            $user,
+            Asset::query()->with('category')
+        )
             ->where(function ($query) use ($currentAssetId) {
                 $query->where('status', 'available');
 
@@ -189,6 +197,9 @@ class Index extends Component
                     'asset.location',
                     'asset.vendor',
                 ])
+                ->whereHas('asset', function ($assetQuery) use ($user) {
+                    AssetAccess::assetsQuery($user, $assetQuery);
+                })
                 ->find($this->detailId);
         }
 
@@ -224,8 +235,8 @@ class Index extends Component
     */
     public function openCreate(): void
     {
+        Gate::authorize('maintenances.create');
         $this->resetForm();
-
         $this->showForm = true;
     }
 
@@ -236,12 +247,28 @@ class Index extends Component
     */
     public function openEdit(int $id): void
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('maintenances.update');
+
         $maintenance = AssetMaintenance::query()
-            ->with('asset')
+            ->with('asset.category')
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
             ->findOrFail($id);
 
-        $this->editingId = $maintenance->id;
+        abort_unless(
+            AssetAccess::canManageCategory(
+                $user,
+                $maintenance->asset?->category?->code
+            ),
+            403
+        );
 
+        $this->editingId = $maintenance->id;
         $this->asset_id = (string) $maintenance->asset_id;
 
         $this->maintenance_date =
@@ -249,18 +276,10 @@ class Index extends Component
             ?? now()->format('Y-m-d');
 
         $this->type = $maintenance->type ?? '';
-
-        $this->description =
-            $maintenance->description ?? '';
-
-        $this->action_taken =
-            $maintenance->action_taken ?? '';
-
-        $this->cost =
-            (string) ($maintenance->cost ?? '0');
-
-        $this->status =
-            $maintenance->status ?? 'in_progress';
+        $this->description = $maintenance->description ?? '';
+        $this->action_taken = $maintenance->action_taken ?? '';
+        $this->cost = (string) ($maintenance->cost ?? '0');
+        $this->status = $maintenance->status ?? 'in_progress';
 
         $this->resetValidation();
 
@@ -274,11 +293,19 @@ class Index extends Component
     */
     public function openDetail(int $id): void
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('maintenances.view');
+
         AssetMaintenance::query()
+            ->whereHas('asset', function ($assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            })
             ->findOrFail($id);
 
         $this->detailId = $id;
-
         $this->showDetail = true;
     }
 
@@ -313,6 +340,16 @@ class Index extends Component
     */
     public function save(): void
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize(
+            $this->editingId
+                ? 'maintenances.update'
+                : 'maintenances.create'
+        );
+
         $validated = $this->validate();
 
         try {
@@ -328,6 +365,12 @@ class Index extends Component
             $this->closeForm();
 
         } catch (ValidationException $e) {
+            throw $e;
+
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            throw $e;
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             throw $e;
 
         } catch (\Throwable $e) {
@@ -347,14 +390,27 @@ class Index extends Component
     */
     private function createMaintenance(array $validated): void
     {
-        DB::transaction(function () use ($validated) {
+        $user = Auth::user();
+        abort_unless($user, 403);
+        DB::transaction(function () use ($validated, $user) {
 
             /*
              * Lock asset.
              */
-            $asset = Asset::query()
+            $asset = AssetAccess::assetsQuery(
+                $user,
+                Asset::query()->with('category')
+            )
                 ->lockForUpdate()
                 ->findOrFail($validated['asset_id']);
+
+            abort_unless(
+                AssetAccess::canManageCategory(
+                    $user,
+                    $asset->category?->code
+                ),
+                403
+            );
 
             /*
              * Asset harus available.
@@ -464,18 +520,23 @@ class Index extends Component
         int $maintenanceId,
         array $validated
     ): void {
+        $user = Auth::user();
+        abort_unless($user, 403);
         DB::transaction(function () use (
             $maintenanceId,
-            $validated
+            $validated,
+            $user
         ) {
 
             /*
              * Lock maintenance.
              */
             $maintenance = AssetMaintenance::query()
+                ->whereHas('asset', function ($assetQuery) use ($user) {
+                    AssetAccess::assetsQuery($user, $assetQuery);
+                })
                 ->lockForUpdate()
                 ->findOrFail($maintenanceId);
-
             /*
              * Asset tidak boleh diganti ketika edit.
              */
@@ -492,9 +553,20 @@ class Index extends Component
             /*
              * Lock asset.
              */
-            $asset = Asset::query()
+            $asset = AssetAccess::assetsQuery(
+                $user,
+                Asset::query()->with('category')
+            )
                 ->lockForUpdate()
                 ->findOrFail($maintenance->asset_id);
+
+            abort_unless(
+                AssetAccess::canManageCategory(
+                    $user,
+                    $asset->category?->code
+                ),
+                403
+            );
 
             $oldMaintenanceStatus = $maintenance->status;
             $newMaintenanceStatus = $validated['status'];
@@ -737,76 +809,61 @@ class Index extends Component
     */
     public function deleteMaintenance(int $id): void
     {
+        $user = Auth::user();
+
+        abort_unless($user, 403);
+
+        Gate::authorize('maintenances.delete');
+
         try {
-
-            DB::transaction(function () use ($id) {
-
-                /*
-                 * Lock maintenance.
-                 */
+            DB::transaction(function () use ($id, $user) {
                 $maintenance = AssetMaintenance::query()
+                    ->whereHas('asset', function ($assetQuery) use ($user) {
+                        AssetAccess::assetsQuery($user, $assetQuery);
+                    })
                     ->lockForUpdate()
                     ->findOrFail($id);
 
-                /*
-                 * Maintenance aktif tidak boleh langsung dihapus.
-                 */
-                if (
-                    in_array(
-                        $maintenance->status,
-                        ['pending', 'in_progress'],
-                        true
-                    )
-                ) {
+                if (in_array(
+                    $maintenance->status,
+                    ['pending', 'in_progress'],
+                    true
+                )) {
                     throw ValidationException::withMessages([
                         'delete' =>
                             'Maintenance aktif tidak dapat dihapus. Selesaikan atau batalkan maintenance terlebih dahulu.',
                     ]);
                 }
 
-                /*
-                 * Lock asset untuk menjaga konsistensi.
-                 */
-                $asset = Asset::query()
+                $asset = AssetAccess::assetsQuery(
+                    $user,
+                    Asset::query()->with('category')
+                )
                     ->lockForUpdate()
                     ->findOrFail($maintenance->asset_id);
 
-                /*
-                 * History sebelum delete.
-                 */
+                abort_unless(
+                    AssetAccess::canManageCategory(
+                        $user,
+                        $asset->category?->code
+                    ),
+                    403
+                );
+
                 AssetHistory::create([
-                    'asset_id' =>
-                        $asset->id,
-
-                    'user_id' =>
-                        Auth::id(),
-
-                    'action' =>
-                        'maintenance_deleted',
-
-                    'description' =>
-                        'Data maintenance dihapus.',
-
+                    'asset_id' => $asset->id,
+                    'user_id' => Auth::id(),
+                    'action' => 'maintenance_deleted',
+                    'description' => 'Data maintenance dihapus.',
                     'old_values' => [
-                        'maintenance_id' =>
-                            $maintenance->id,
-
-                        'type' =>
-                            $maintenance->type,
-
-                        'status' =>
-                            $maintenance->status,
-
-                        'cost' =>
-                            $maintenance->cost,
+                        'maintenance_id' => $maintenance->id,
+                        'type' => $maintenance->type,
+                        'status' => $maintenance->status,
+                        'cost' => $maintenance->cost,
                     ],
-
                     'new_values' => null,
                 ]);
 
-                /*
-                 * Hapus maintenance.
-                 */
                 $maintenance->delete();
             });
 
@@ -816,6 +873,12 @@ class Index extends Component
             );
 
         } catch (ValidationException $e) {
+            throw $e;
+
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            throw $e;
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             throw $e;
 
         } catch (\Throwable $e) {

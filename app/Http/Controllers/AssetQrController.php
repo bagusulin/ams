@@ -7,6 +7,9 @@ use F9WebLtd\QrCode\Generator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class AssetQrController extends Controller
 {
@@ -15,11 +18,17 @@ class AssetQrController extends Controller
      */
     public function index(Request $request): View
     {
-        $query = Asset::query()->with([
-            'category',
-            'location',
-            'vendor',
-        ]);
+        $user = Auth::user();
+        abort_unless($user, 403);
+        Gate::authorize('asset-qr.view');
+        $query = AssetAccess::assetsQuery(
+            $user,
+            Asset::query()->with([
+                'category',
+                'location',
+                'vendor',
+            ])
+        );
 
         if ($request->filled('search')) {
             $search = '%' . trim($request->input('search')) . '%';
@@ -45,6 +54,13 @@ class AssetQrController extends Controller
      */
     public function detail(Asset $asset): View
     {
+        $user = Auth::user();
+        abort_unless($user, 403);
+        Gate::authorize('asset-qr.view');
+        abort_unless(
+            AssetAccess::canView($user, $asset),
+            404
+        );
         $asset->load([
             'category',
             'location',
@@ -83,6 +99,13 @@ class AssetQrController extends Controller
      */
     public function image(Asset $asset): Response
     {
+        $user = Auth::user();
+        abort_unless($user, 403);
+        Gate::authorize('asset-qr.view');
+        abort_unless(
+            AssetAccess::canView($user, $asset),
+            404
+        );
         $targetUrl = route('asset-qr.detail', [
             'asset' => $asset->id,
         ]);
@@ -106,6 +129,13 @@ class AssetQrController extends Controller
      */
     public function printLabel(Asset $asset): View
     {
+        $user = Auth::user();
+        abort_unless($user, 403);
+        Gate::authorize('asset-qr.view');
+        abort_unless(
+            AssetAccess::canView($user, $asset),
+            404
+        );
         $asset->load([
             'category',
             'location',

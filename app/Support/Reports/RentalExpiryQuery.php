@@ -4,6 +4,8 @@ namespace App\Support\Reports;
 use Carbon\CarbonInterface;
 use App\Models\Asset;
 use Illuminate\Database\Eloquent\Builder;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
 
 class RentalExpiryQuery
 {
@@ -11,13 +13,17 @@ class RentalExpiryQuery
         array $filters = [],
         bool $applyBucket = true
     ): Builder {
-        $query = Asset::query()
-            ->with([
+        $user = Auth::user();
+        abort_unless($user, 403);
+
+        $query = AssetAccess::assetsQuery(
+            $user,
+            Asset::query()->with([
                 'category',
                 'location',
                 'vendor',
             ])
-            ->whereNotNull('rental_end_date');
+        )->whereNotNull('rental_end_date');
 
         /*
         |--------------------------------------------------------------------------

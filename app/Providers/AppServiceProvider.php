@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,40 +27,40 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         View::composer('layouts.admin', function ($view) {
+            $user = Auth::user();
+
+            if (! $user) {
+                $view->with([
+                    'expiredRentalNotificationCount' => 0,
+                    'upcomingRentalNotificationCount' => 0,
+                    'rentalExpiryNotificationCount' => 0,
+                    'expiredRentalNotifications' => collect(),
+                    'upcomingRentalNotifications' => collect(),
+                ]);
+
+                return;
+            }
 
             $today = today();
-            $expiryLimit = $today->copy()->addDays(60);
+            $expiryLimit = today()->addDays(60)->endOfDay();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Count Expired Rentals
-            |--------------------------------------------------------------------------
-            */
+            $scopedAssets = fn () => AssetAccess::assetsQuery(
+                $user,
+                Asset::query()
+            );
 
-            $expiredRentalNotificationCount = Asset::query()
+            $expiredRentalNotificationCount = $scopedAssets()
                 ->whereNotNull('rental_end_date')
                 ->whereDate('rental_end_date', '<', $today)
                 ->count();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Count Upcoming Rentals: 60 Days
-            |--------------------------------------------------------------------------
-            */
-
-            $upcomingRentalNotificationCount = Asset::query()
+            $upcomingRentalNotificationCount = $scopedAssets()
                 ->whereNotNull('rental_end_date')
                 ->whereDate('rental_end_date', '>=', $today)
                 ->whereDate('rental_end_date', '<=', $expiryLimit)
                 ->count();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Five Latest Expired Rentals
-            |--------------------------------------------------------------------------
-            */
-
-            $expiredRentalNotifications = Asset::query()
+            $expiredRentalNotifications = $scopedAssets()
                 ->with('category')
                 ->whereNotNull('rental_end_date')
                 ->whereDate('rental_end_date', '<', $today)
@@ -66,13 +68,7 @@ class AppServiceProvider extends ServiceProvider
                 ->take(5)
                 ->get();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Five Nearest Expiry Dates
-            |--------------------------------------------------------------------------
-            */
-
-            $upcomingRentalNotifications = Asset::query()
+            $upcomingRentalNotifications = $scopedAssets()
                 ->with('category')
                 ->whereNotNull('rental_end_date')
                 ->whereDate('rental_end_date', '>=', $today)
@@ -80,12 +76,6 @@ class AppServiceProvider extends ServiceProvider
                 ->orderBy('rental_end_date')
                 ->take(5)
                 ->get();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Share Data With Admin Layout
-            |--------------------------------------------------------------------------
-            */
 
             $view->with([
                 'expiredRentalNotificationCount' =>

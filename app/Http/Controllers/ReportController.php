@@ -17,6 +17,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Support\Assets\AssetAccess;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class ReportController extends Controller
 {
@@ -28,6 +31,7 @@ class ReportController extends Controller
 
     public function assets(Request $request)
     {
+        Gate::authorize('reports.assets.view');
         $query = Asset::query()->with([
             'category',
             'location',
@@ -35,13 +39,16 @@ class ReportController extends Controller
         ]);
 
         $this->applyAssetFilters($query, $request);
+        $user = Auth::user();
+        abort_unless($user, 403);
+        AssetAccess::assetsQuery($user, $query);
 
         $assets = $query
             ->latest('created_at')
             ->paginate(15)
             ->withQueryString();
 
-        $categories = AssetCategory::query()
+        $categories = AssetAccess::categoriesQueryFor(Auth::user())
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -61,6 +68,7 @@ class ReportController extends Controller
 
     public function exportAssetsExcel(Request $request)
     {
+        Gate::authorize('reports.assets.export');
         $filename = 'asset-report-' . now()->format('Y-m-d-His') . '.xlsx';
 
         return Excel::download(
@@ -71,6 +79,7 @@ class ReportController extends Controller
 
     public function exportAssetsPdf(Request $request)
     {
+        Gate::authorize('reports.assets.export');
         $query = Asset::query()->with([
             'category',
             'location',
@@ -136,6 +145,7 @@ class ReportController extends Controller
 
     public function assignments(Request $request)
     {
+        Gate::authorize('reports.assignments.view');
         $type = $request->input('type', 'active');
 
         if (!in_array($type, ['active', 'returned'], true)) {
@@ -164,7 +174,13 @@ class ReportController extends Controller
             ->orderBy('name')
             ->get();
 
-        $summaryQuery = AssetAssignment::query();
+        $user = Auth::user();
+        abort_unless($user, 403);
+
+        $summaryQuery = AssetAssignment::query()
+            ->whereHas('asset', function (Builder $assetQuery) use ($user) {
+                AssetAccess::assetsQuery($user, $assetQuery);
+            });
 
         if ($type === 'active') {
             $summaryQuery->whereNull('returned_at');
@@ -185,6 +201,7 @@ class ReportController extends Controller
 
     public function exportAssignmentsExcel(Request $request)
     {
+        Gate::authorize('reports.assignments.export');
         $type = $request->input('type', 'active');
 
         if (!in_array($type, ['active', 'returned'], true)) {
@@ -205,6 +222,7 @@ class ReportController extends Controller
 
     public function exportAssignmentsPdf(Request $request)
     {
+        Gate::authorize('reports.assignments.export');
         $type = $request->input('type', 'active');
 
         if (!in_array($type, ['active', 'returned'], true)) {
@@ -240,12 +258,17 @@ class ReportController extends Controller
         Request $request,
         string $type
     ): Builder {
+        $user = Auth::user();
+        abort_unless($user, 403);
         $query = AssetAssignment::query()->with([
             'asset.category',
             'asset.location',
             'user',
             'location',
         ]);
+        $query->whereHas('asset', function (Builder $assetQuery) use ($user) {
+            AssetAccess::assetsQuery($user, $assetQuery);
+        });
 
         if ($type === 'active') {
             $query->whereNull('returned_at');
@@ -309,6 +332,7 @@ class ReportController extends Controller
 
     public function maintenances(Request $request)
     {
+        Gate::authorize('reports.maintenances.view');
         $query = $this->maintenanceQuery($request);
 
         $maintenances = (clone $query)
@@ -329,7 +353,7 @@ class ReportController extends Controller
 
         $totalCost = (clone $query)->sum('cost');
 
-        $categories = AssetCategory::query()
+        $categories = AssetAccess::categoriesQueryFor(Auth::user())
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -352,6 +376,7 @@ class ReportController extends Controller
 
     public function exportMaintenancesExcel(Request $request)
     {
+        Gate::authorize('reports.maintenances.export');
         return Excel::download(
             new MaintenancesExport($request->all()),
             'maintenance-report-' . now()->format('Y-m-d-His') . '.xlsx'
@@ -360,6 +385,7 @@ class ReportController extends Controller
 
     public function exportMaintenancesPdf(Request $request)
     {
+        Gate::authorize('reports.maintenances.export');
         $maintenances = $this->maintenanceQuery($request)
             ->latest('maintenance_date')
             ->latest('id')
@@ -378,11 +404,18 @@ class ReportController extends Controller
 
     private function maintenanceQuery(Request $request): Builder
     {
+        $user = Auth::user();
+        abort_unless($user, 403);
+        Gate::authorize('reports.maintenances.view');
         $query = AssetMaintenance::query()->with([
             'asset.category',
             'asset.location',
             'asset.vendor',
         ]);
+        
+        $query->whereHas('asset', function (Builder $assetQuery) use ($user) {
+            AssetAccess::assetsQuery($user, $assetQuery);
+        });
 
         if ($request->filled('search')) {
             $search = '%' . trim($request->string('search')->toString()) . '%';
@@ -454,6 +487,7 @@ class ReportController extends Controller
 
     public function rentalExpiry(Request $request)
     {
+        Gate::authorize('reports.rentals.view');
         $filters = $this->validateRentalExpiryFilters($request);
 
         $bucket = $filters['bucket'] ?? 'all';
@@ -497,7 +531,7 @@ class ReportController extends Controller
             ->whereDate('rental_end_date', '>', $day60)
             ->count();
 
-        $categories = AssetCategory::query()
+        $categories = AssetAccess::categoriesQueryFor(Auth::user())
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -522,6 +556,7 @@ class ReportController extends Controller
 
     public function exportRentalExpiryExcel(Request $request)
     {
+        Gate::authorize('reports.rentals.export');
         $filters = $this->validateRentalExpiryFilters($request);
 
         return Excel::download(
@@ -532,6 +567,7 @@ class ReportController extends Controller
 
     public function exportRentalExpiryPdf(Request $request)
     {
+        Gate::authorize('reports.rentals.export');
         $filters = $this->validateRentalExpiryFilters($request);
 
         $assets = RentalExpiryQuery::build($filters)

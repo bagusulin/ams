@@ -2,6 +2,7 @@
 
 namespace App\Livewire\AssetCategories;
 
+use Illuminate\Support\Facades\Gate;
 use App\Models\AssetCategory;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -95,8 +96,8 @@ class Index extends Component
 
     public function create(): void
     {
+        Gate::authorize('asset-categories.create');
         $this->resetForm();
-
         $this->showForm = true;
     }
 
@@ -109,6 +110,7 @@ class Index extends Component
 
     public function edit(int $id): void
     {
+        Gate::authorize('asset-categories.edit');
         $category = AssetCategory::findOrFail($id);
 
         $this->editingId = $category->id;
@@ -135,6 +137,11 @@ class Index extends Component
 
     public function save(): void
     {
+        Gate::authorize(
+            $this->editingId
+                ? 'asset-categories.update'
+                : 'asset-categories.create'
+        );
         $validated = $this->validate();
 
         if ($this->editingId) {
@@ -172,6 +179,7 @@ class Index extends Component
 
     public function toggleStatus(int $id): void
     {
+        Gate::authorize('asset-categories.update');
         $category = AssetCategory::findOrFail($id);
 
         $category->update([
@@ -193,6 +201,7 @@ class Index extends Component
 
     public function delete(int $id): void
     {
+        Gate::authorize('asset-categories.delete');
         $category = AssetCategory::findOrFail($id);
 
         /*
