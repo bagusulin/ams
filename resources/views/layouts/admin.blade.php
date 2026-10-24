@@ -19,6 +19,29 @@
         {{ $title ?? 'Dashboard' }} - Asset Management System
     </title>
 
+    <script>
+        (() => {
+            try {
+                const saved = localStorage.getItem('ams-theme');
+
+                const systemPrefersDark =
+                    window.matchMedia &&
+                    window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+                const theme = saved === 'dark' || saved === 'light'
+                    ? saved
+                    : (systemPrefersDark ? 'dark' : 'light');
+
+                document.documentElement.classList.toggle(
+                    'dark',
+                    theme === 'dark'
+                );
+            } catch (error) {
+                // Jika localStorage tidak tersedia, gunakan tema terang.
+            }
+        })();
+    </script>
+
     @vite([
         'resources/css/app.css',
         'resources/js/app.js'
@@ -55,43 +78,23 @@
         <!-- Logo -->
 
         <div class="flex h-16 items-center border-b border-slate-200 px-5">
-
             <div class="flex items-center gap-3">
-
-                <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-
-                    <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    >
-                        <rect x="3" y="5" width="18" height="14" rx="2"/>
-                        <path d="M8 5V3h8v2"/>
-                        <path d="M8 12h8"/>
-                    </svg>
-
-                </div>
-
+                <img
+                    src="{{ asset('images/logo_ams.png') }}"
+                    alt="Logo PNM AMS"
+                    class="h-10 w-10 shrink-0 rounded-lg object-cover"
+                >
 
                 <div>
-
                     <p class="text-sm font-bold leading-tight text-slate-900">
-                        Asset Management
+                        PNM AMS
                     </p>
 
-                    <p class="text-[11px] text-slate-400">
-                        Management System
+                    <p class="text-[11px] text-slate-500">
+                        Asset Management System
                     </p>
-
                 </div>
-
             </div>
-
         </div>
 
 
@@ -579,6 +582,62 @@
 
             <div class="flex items-center gap-2">
 
+                
+                {{-- Theme Switcher --}}
+                <button
+                    id="theme-toggle"
+                    type="button"
+                    onclick="toggleAmsTheme()"
+                    aria-label="Ganti tema"
+                    aria-pressed="false"
+                    title="Aktifkan mode gelap"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center
+                        rounded-lg text-slate-500 transition
+                        hover:bg-slate-100 hover:text-slate-900
+                        focus:outline-none focus:ring-2 focus:ring-blue-300"
+                >
+                    {{-- Ikon matahari: terlihat pada mode terang --}}
+                    <svg
+                        id="theme-icon-sun"
+                        class="block size-5 dark:hidden"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <circle cx="12" cy="12" r="4"/>
+                        <path d="M12 2v2"/>
+                        <path d="M12 20v2"/>
+                        <path d="m4.93 4.93 1.42 1.42"/>
+                        <path d="m17.65 17.65 1.42 1.42"/>
+                        <path d="M2 12h2"/>
+                        <path d="M20 12h2"/>
+                        <path d="m4.93 19.07 1.42-1.42"/>
+                        <path d="m17.65 6.35 1.42-1.42"/>
+                    </svg>
+
+                    {{-- Ikon bulan: terlihat pada mode gelap --}}
+                    <svg
+                        id="theme-icon-moon"
+                        class="hidden size-5 dark:block"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/>
+                    </svg>
+                </button>
+
+
                 <!-- Notification -->
 
                 {{-- ========================================================= --}}
@@ -990,6 +1049,48 @@
             overlay.classList.toggle('hidden');
 
         }
+        function toggleAmsTheme() {
+            const root = document.documentElement;
+
+            const isDark = !root.classList.contains('dark');
+
+            root.classList.toggle('dark', isDark);
+
+            try {
+                localStorage.setItem(
+                    'ams-theme',
+                    isDark ? 'dark' : 'light'
+                );
+            } catch (error) {
+                // Tema tetap berubah untuk halaman yang sedang dibuka.
+            }
+
+            syncAmsThemeButton();
+        }
+
+        function syncAmsThemeButton() {
+            const button = document.getElementById('theme-toggle');
+
+            if (!button) {
+                return;
+            }
+
+            const isDark = document.documentElement.classList.contains('dark');
+
+            button.setAttribute('aria-pressed', String(isDark));
+
+            button.setAttribute(
+                'title',
+                isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'
+            );
+
+            button.setAttribute(
+                'aria-label',
+                isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'
+            );
+        }
+
+        syncAmsThemeButton();
 
     </script>
 

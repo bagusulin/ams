@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* Tailwind source globs retained for reference:
    '../views'
@@ -52,4 +53,216 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+}
+
+/*
+|--------------------------------------------------------------------------
+| PNM AMS - Authentication Theme
+|--------------------------------------------------------------------------
+*/
+
+.auth-theme input:not([type="hidden"]):not([type="checkbox"]),
+.auth-theme textarea,
+.auth-theme select,
+.auth-theme [data-flux-control] {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+.auth-theme input::placeholder,
+.auth-theme textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1;
+}
+
+.auth-theme input:not([type="hidden"]):not([type="checkbox"]):focus,
+.auth-theme textarea:focus,
+.auth-theme select:focus,
+.auth-theme [data-flux-control]:focus {
+    border-color: #225199 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgb(34 81 153 / 15%) !important;
+}
+
+.auth-theme label,
+.auth-theme [data-flux-label] {
+    color: #1e293b !important;
+}
+
+.auth-theme input[type="checkbox"] {
+    accent-color: #225199;
+}
+
+/* Menjaga warna teks dan latar saat Chrome mengisi otomatis. */
+.auth-theme input:-webkit-autofill,
+.auth-theme input:-webkit-autofill:hover,
+.auth-theme input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #0f172a !important;
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+    caret-color: #0f172a !important;
+}
+
+
+/* =========================================================
+   PNM AMS - DARK MODE
+   Tema utama: #225199
+   ========================================================= */
+
+html {
+    color-scheme: light;
+}
+
+html.dark {
+    color-scheme: dark;
+}
+
+html.dark body {
+    background-color: #0b1220 !important;
+    color: #e5e7eb !important;
+}
+
+/* Background dan panel umum */
+html.dark .bg-white {
+    background-color: #111827 !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-gray-50 {
+    background-color: #0f172a !important;
+}
+
+html.dark .bg-slate-100,
+html.dark .bg-gray-100,
+html.dark .bg-slate-200,
+html.dark .bg-gray-200 {
+    background-color: #1f2937 !important;
+}
+
+/* Warna branding */
+html.dark .bg-blue-50 {
+    background-color: #172554 !important;
+}
+
+html.dark .bg-blue-100 {
+    background-color: #1e3a8a !important;
+}
+
+html.dark .text-blue-700,
+html.dark .text-blue-600 {
+    color: #93c5fd !important;
+}
+
+html.dark .text-blue-900 {
+    color: #dbeafe !important;
+}
+
+/* Teks umum */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-gray-900,
+html.dark .text-gray-800 {
+    color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-gray-700 {
+    color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-gray-600,
+html.dark .text-gray-500 {
+    color: #a3b2c7 !important;
+}
+
+html.dark .text-slate-400,
+html.dark .text-gray-400 {
+    color: #94a3b8 !important;
+}
+
+/* Border dan pemisah */
+html.dark .border-slate-200,
+html.dark .border-slate-100,
+html.dark .border-gray-200,
+html.dark .border-gray-100 {
+    border-color: #334155 !important;
+}
+
+html.dark .divide-gray-100 > :not(:last-child),
+html.dark .divide-slate-100 > :not(:last-child) {
+    border-color: #334155 !important;
+}
+
+/* Header dan sidebar */
+html.dark header.sticky {
+    background-color: rgb(17 24 39 / 94%) !important;
+    border-color: #334155 !important;
+}
+
+html.dark #sidebar {
+    background-color: #111827 !important;
+    border-color: #334155 !important;
+}
+
+html.dark #sidebar .border-b,
+html.dark #sidebar .border-t {
+    border-color: #334155 !important;
+}
+
+html.dark #sidebar .bg-slate-50,
+html.dark #sidebar .bg-gray-50 {
+    background-color: #0f172a !important;
+}
+
+/* Hover navigasi dan baris tabel */
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-gray-100:hover {
+    background-color: #1f2937 !important;
+}
+
+html.dark .hover\:text-slate-900:hover,
+html.dark .hover\:text-gray-900:hover {
+    color: #f8fafc !important;
+}
+
+/* Status dan peringatan */
+html.dark .bg-red-50,
+html.dark .bg-rose-50 {
+    background-color: #451a24 !important;
+}
+
+html.dark .text-red-700,
+html.dark .text-rose-700 {
+    color: #fda4af !important;
+}
+
+html.dark .bg-orange-50 {
+    background-color: #431f12 !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-yellow-50 {
+    background-color: #422d0b !important;
+}
+
+html.dark .text-orange-800,
+html.dark .text-orange-900,
+html.dark .text-amber-700,
+html.dark .text-yellow-700 {
+    color: #fcd34d !important;
+}
+
+/* Transisi halus saat tema berubah */
+body,
+#sidebar,
+header,
+main {
+    transition:
+        background-color 180ms ease,
+        color 180ms ease,
+        border-color 180ms ease;
 }

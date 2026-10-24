@@ -8,19 +8,24 @@
 
     <div class="mb-6">
 
-        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-left sm:gap-6">
 
-            <div>
-
-                <h1 class="text-2xl font-bold tracking-tight text-gray-900">
-                    Dashboard
-                </h1>
-
-                <p class="mt-1 text-sm text-gray-500">
-                    Ringkasan kondisi asset dan monitoring masa sewa.
-                </p>
-
+            <div
+                class="inline-flex items-center gap-2 rounded-full
+                    bg-blue-50 px-3 py-1.5 text-xs font-semibold
+                    tracking-wide text-[#225199]"
+            >
+                <span class="size-2 rounded-full bg-[#225199]"></span>
+                PNM AMS · PORTAL INTERNAL
             </div>
+
+            <h1 class="mt-3 text-2xl font-bold tracking-tight text-[#225199]">
+                Dashboard
+            </h1>
+
+            <p class="mt-1 text-sm text-gray-500">
+                Ringkasan kondisi aset dan monitoring masa sewa.
+            </p>
 
 
             <div class="text-sm text-gray-500">

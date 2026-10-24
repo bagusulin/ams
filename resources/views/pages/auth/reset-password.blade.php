@@ -1,54 +1,97 @@
-<x-layouts::auth :title="__('Reset password')">
-    <div class="flex flex-col gap-6">
-        <x-auth-header :title="__('Reset password')" :description="__('Please enter your new password below')" />
+<x-layouts::auth.login :title="__('Reset Kata Sandi')">
+    <div class="flex flex-col gap-7">
 
-        <!-- Session Status -->
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <div>
+            <span
+                class="inline-flex items-center rounded-full
+                       bg-blue-50 px-3 py-1.5 text-xs
+                       font-semibold tracking-wide text-[#225199]"
+            >
+                PNM AMS · PORTAL INTERNAL
+            </span>
 
-        <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-6">
+            <h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900">
+                Atur ulang kata sandi
+            </h1>
+
+            <p class="mt-2 text-sm leading-6 text-slate-500">
+                Buat kata sandi baru untuk akun AMS Anda.
+            </p>
+        </div>
+
+        <x-auth-session-status
+            class="text-center"
+            :status="session('status')"
+        />
+
+        <form
+            method="POST"
+            action="{{ route('password.update') }}"
+            class="flex flex-col gap-5"
+        >
             @csrf
-            <!-- Token -->
-            <input type="hidden" name="token" value="{{ request()->route('token') }}">
 
-            <!-- Email Address -->
+            <input
+                type="hidden"
+                name="token"
+                value="{{ request()->route('token') }}"
+            >
+
             <flux:input
                 name="email"
-                value="{{ request('email') }}"
-                :label="__('Email')"
+                label="Alamat email"
+                :value="request('email')"
                 type="email"
                 required
+                readonly
                 autocomplete="email"
             />
 
-            <!-- Password -->
             <flux:input
                 name="password"
-                :label="__('Password')"
+                label="Kata sandi baru"
                 type="password"
                 required
+                autofocus
                 autocomplete="new-password"
-                :placeholder="__('Password')"
-                passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
+                placeholder="Masukkan kata sandi baru"
                 viewable
+                passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
             />
 
-            <!-- Confirm Password -->
             <flux:input
                 name="password_confirmation"
-                :label="__('Confirm password')"
+                label="Konfirmasi kata sandi"
                 type="password"
                 required
                 autocomplete="new-password"
-                :placeholder="__('Confirm password')"
-                passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
+                placeholder="Ulangi kata sandi baru"
                 viewable
+                passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
             />
 
-            <div class="flex items-center justify-end">
-                <flux:button type="submit" variant="primary" class="w-full" data-test="reset-password-button">
-                    {{ __('Reset password') }}
-                </flux:button>
-            </div>
+            <button
+                type="submit"
+                data-test="reset-password-button"
+                class="flex h-12 w-full items-center justify-center
+                       rounded-xl bg-[#225199] px-4 text-sm
+                       font-semibold text-white shadow-sm transition
+                       hover:bg-[#193f7a]
+                       focus:outline-none focus:ring-4 focus:ring-blue-200"
+            >
+                Simpan kata sandi baru
+            </button>
         </form>
+
+        <p class="text-center text-sm text-slate-500">
+            <a
+                href="{{ route('login') }}"
+                wire:navigate
+                class="font-semibold text-[#225199] hover:text-[#193f7a]"
+            >
+                Kembali ke login
+            </a>
+        </p>
+
     </div>
-</x-layouts::auth>
+</x-layouts::auth.login>
