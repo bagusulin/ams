@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Carbon;
 
 class AssetCsvImportController extends Controller
 {
@@ -361,6 +362,14 @@ class AssetCsvImportController extends Controller
             ->where('is_active', true)
             ->first();
 
+            if (! $category->default_rental_years) {
+                return back()->withErrors([
+                    'file' =>
+                        'Masa sewa default kategori Handphone belum diatur. '
+                        . 'Buka Asset Category dan tentukan masa sewanya terlebih dahulu.',
+                ]);
+            }
+
         if (! $category) {
             return back()->withErrors([
                 'file' => 'Kategori Handphone dengan kode HPN belum tersedia atau tidak aktif. Periksa Master Kategori terlebih dahulu.',
@@ -440,7 +449,9 @@ class AssetCsvImportController extends Controller
                         'condition' => 'good',
                         'purchase_date' => null,
                         'rental_start_date' => $record['rental_start_date'],
-                        'rental_end_date' => null,
+                        'rental_end_date' => Carbon::parse($record['rental_start_date'])
+                            ->addYearsNoOverflow((int) $category->default_rental_years)
+                            ->toDateString(),
                         'rental_cost' => null,
                         'notes' => implode("\n", $noteParts) ?: null,
 

@@ -14,10 +14,12 @@ class AssetCategory extends Model
         'code',
         'description',
         'is_active',
+        'default_rental_years',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'default_rental_years' => 'integer',
     ];
 
     /**

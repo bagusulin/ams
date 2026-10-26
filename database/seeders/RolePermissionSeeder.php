@@ -35,6 +35,7 @@ class RolePermissionSeeder extends Seeder
             'assets.create',
             'assets.update',
             'assets.delete',
+            'assets.import',
 
             'assignments.view',
             'assignments.create',
@@ -65,6 +66,7 @@ class RolePermissionSeeder extends Seeder
             'users.delete',
             'roles.manage',
             'audit-logs.view',
+
         ];
 
         foreach ($permissions as $permission) {
@@ -117,6 +119,7 @@ class RolePermissionSeeder extends Seeder
             'assets.create',
             'assets.update',
             'assets.delete',
+            'assets.import',
 
             'assignments.view',
             'assignments.create',

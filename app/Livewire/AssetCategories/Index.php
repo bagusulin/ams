@@ -37,6 +37,8 @@ class Index extends Component
 
     public string $description = '';
 
+    public string $default_rental_years = '';
+
     public bool $is_active = true;
 
 
@@ -71,6 +73,13 @@ class Index extends Component
 
             'is_active' => [
                 'boolean',
+            ],
+
+            'default_rental_years' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:10',
             ],
         ];
     }
@@ -119,7 +128,9 @@ class Index extends Component
 
         $this->code = $category->code;
 
-        $this->description = $category->description ?? '';
+        $this->default_rental_years = $category->default_rental_years !== null
+            ? (string) $category->default_rental_years
+            : '';
 
         $this->is_active = (bool) $category->is_active;
 
@@ -257,6 +268,8 @@ class Index extends Component
 
         $this->description = '';
 
+        $this->default_rental_years = '';
+
         $this->is_active = true;
 
         $this->showForm = false;
@@ -296,5 +309,61 @@ class Index extends Component
                 'categories' => $categories,
             ]
         );
+    }
+
+    public function updatedName(): void
+    {
+        $this->applySuggestedRentalYears();
+    }
+
+    public function updatedCode(): void
+    {
+        $this->applySuggestedRentalYears();
+    }
+
+    private function applySuggestedRentalYears(): void
+    {
+        $code = strtoupper(trim($this->code));
+
+        $codePeriods = [
+            'NBK' => 3,
+            'LPT' => 3,
+            'HPN' => 2,
+            'MTR' => 3,
+            'MBL' => 4,
+            'CTV' => 2,
+            'PRN' => 2,
+            'SCN' => 3,
+        ];
+
+        if (isset($codePeriods[$code])) {
+            $this->default_rental_years = (string) $codePeriods[$code];
+
+            return;
+        }
+
+        $name = mb_strtolower($this->name);
+        $normalizedName = preg_replace('/[^a-z0-9]/', '', $name);
+
+        $namePeriods = [
+            'notebook' => 3,
+            'laptop' => 3,
+            'handphone' => 2,
+            'hp' => 2,
+            'sepedamotor' => 3,
+            'motor' => 3,
+            'mobil' => 4,
+            'cctv' => 2,
+            'printer' => 2,
+            'scanner' => 3,
+        ];
+
+        foreach ($namePeriods as $keyword => $years) {
+            if (str_contains($normalizedName, $keyword)) {
+                $this->default_rental_years = (string) $years;
+
+                return;
+            }
+        }
     }
 }

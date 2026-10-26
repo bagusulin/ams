@@ -12,36 +12,43 @@ class AssetCategorySeeder extends Seeder
         AssetCategory::create([
             'name' => 'Laptop',
             'code' => 'LPT',
+            'default_rental_years' => 3,
         ]);
 
         AssetCategory::create([
             'name' => 'Handphone',
             'code' => 'HPN',
+            'default_rental_years' => 2,
         ]);
 
         AssetCategory::create([
             'name' => 'Sepeda Motor',
             'code' => 'MTR',
+            'default_rental_years' => 3,
         ]);
 
         AssetCategory::create([
             'name' => 'Mobil',
             'code' => 'MBL',
+            'default_rental_years' => 4,
         ]);
 
         AssetCategory::create([
             'name' => 'Printer',
             'code' => 'PRN',
+            'default_rental_years' => 2,
         ]);
 
         AssetCategory::create([
             'name' => 'Scanner',
             'code' => 'SCN',
+            'default_rental_years' => 3,
         ]);
 
         AssetCategory::create([
             'name' => 'CCTV',
             'code' => 'CTV',
+            'default_rental_years' => 2,
         ]);
     }
 }

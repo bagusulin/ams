@@ -175,7 +175,7 @@
 
                         <input
                             type="text"
-                            wire:model="name"
+                            wire:model.live.debounce.300ms="name"
                             placeholder="Contoh: Laptop"
                             class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                         >
@@ -209,7 +209,7 @@
 
                         <input
                             type="text"
-                            wire:model="code"
+                            wire:model.live.debounce.300ms="code"
                             placeholder="Contoh: LPT"
                             maxlength="20"
                             class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm uppercase text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -278,6 +278,36 @@
 
                         </label>
 
+                    </div>
+
+                    {{-- MASA SEWA DEFAULT --}}
+                    <div>
+                        <label class="mb-1.5 block text-xs font-semibold text-slate-700">
+                            Masa Sewa Default (Tahun)
+                            <span class="text-red-500">*</span>
+                        </label>
+
+                        <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            step="1"
+                            wire:model="default_rental_years"
+                            placeholder="Contoh: 2"
+                            required
+                            class="w-full rounded-lg border border-slate-200 bg-white
+                                px-3 py-2.5 text-sm text-slate-800 outline-none
+                                transition placeholder:text-slate-400
+                                focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        >
+
+                        <p class="mt-1 text-xs text-slate-500">
+                            Digunakan sebagai durasi default untuk menghitung akhir masa sewa aset.
+                        </p>
+
+                        @error('default_rental_years')
+                            <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                        @enderror
                     </div>
 
                 </div>
@@ -412,6 +442,10 @@
                             Status
                         </th>
 
+                        <th class="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Masa Sewa Default (Tahun)
+                        </th>
+
                         <th class="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             Action
                         </th>
@@ -464,6 +498,11 @@
 
                             </td>
 
+                            <td class="px-5 py-4 text-xs text-slate-600">
+                                {{ $category->default_rental_years !== null
+                                    ? $category->default_rental_years . ' tahun'
+                                    : 'Belum diatur' }}
+                            </td>
 
                             <!-- DESCRIPTION -->
 
@@ -576,7 +615,7 @@
                         <tr>
 
                             <td
-                                colspan="6"
+                                colspan="7"
                                 class="px-5 py-14 text-center"
                             >
 

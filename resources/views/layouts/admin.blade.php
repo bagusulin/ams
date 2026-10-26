@@ -175,18 +175,6 @@
                 Asset
             </a>
 
-            @can('assets.import')
-                <a
-                    href="{{ route('assets.import.index') }}"
-                    class="mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5
-                        text-sm font-medium text-slate-600 transition
-                        hover:bg-slate-50 hover:text-slate-900
-                        dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                    <span>Import HP CSV</span>
-                </a>
-            @endcan
-
             <!-- QR ASSET -->
 
             <a

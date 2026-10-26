@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Illuminate\Support\Carbon;
 
 class Index extends Component
 {
@@ -219,6 +220,42 @@ class Index extends Component
         $this->resetPage();
     }
 
+    public function updatedCategoryId($value = null): void
+    {
+        $this->recalculateRentalEndDate();
+    }
+
+    public function updatedRentalStartDate($value = null): void
+    {
+        $this->recalculateRentalEndDate();
+    }
+
+    private function recalculateRentalEndDate(): void
+    {
+        if ($this->category_id === '' || $this->rental_start_date === '') {
+            $this->rental_end_date = '';
+
+            return;
+        }
+
+        $category = AssetCategory::query()
+            ->find((int) $this->category_id);
+
+        if (! $category || ! $category->default_rental_years) {
+            $this->rental_end_date = '';
+
+            return;
+        }
+
+        try {
+            $this->rental_end_date = Carbon::parse($this->rental_start_date)
+                ->addYearsNoOverflow((int) $category->default_rental_years)
+                ->toDateString();
+        } catch (\Throwable $exception) {
+            $this->rental_end_date = '';
+        }
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -343,6 +380,13 @@ class Index extends Component
             ]);
         }
 
+        if (! $category->default_rental_years) {
+            throw ValidationException::withMessages([
+                'category_id' =>
+                    'Masa sewa default kategori belum diatur. Edit kategori terlebih dahulu.',
+            ]);
+        }
+
         // Cek kategori sesuai role Admin, IT, atau PPI.
         if (! AssetAccess::canManageCategory(
             $user,
@@ -352,6 +396,38 @@ class Index extends Component
                 'category_id' =>
                     'Anda tidak memiliki akses untuk mengelola kategori aset ini.',
             ]);
+        }
+
+        // Ambil data lama ketika sedang mengedit aset.
+        $existingAsset = null;
+
+        if ($this->editingId) {
+            $existingAsset = AssetAccess::assetsQuery($user)
+                ->findOrFail($this->editingId);
+        }
+
+        $newRentalStartDate = ($validated['rental_start_date'] ?? '') ?: null;
+
+        $oldRentalStartDate = $existingAsset?->rental_start_date?->toDateString();
+
+        $categoryChanged = $existingAsset
+            && (int) $existingAsset->category_id !== (int) $category->id;
+
+        $startDateChanged = ! $existingAsset
+            || $oldRentalStartDate !== $newRentalStartDate;
+
+        $shouldRecalculateEndDate = ! $existingAsset
+            || $categoryChanged
+            || $startDateChanged;
+
+        if ($shouldRecalculateEndDate) {
+            if ($newRentalStartDate === null) {
+                $validated['rental_end_date'] = null;
+            } else {
+                $validated['rental_end_date'] = Carbon::parse($newRentalStartDate)
+                    ->addYearsNoOverflow((int) $category->default_rental_years)
+                    ->toDateString();
+            }
         }
 
         // Konversi string kosong menjadi null.
@@ -621,6 +697,11 @@ class Index extends Component
             ->orderBy('name')
             ->get();
 
+        $selectedCategory = $categories->firstWhere(
+            'id',
+            (int) $this->category_id
+        );
+
 
         $locations = Location::query()
             ->where('is_active', true)
@@ -659,6 +740,7 @@ class Index extends Component
                 'categories' => $categories,
                 'locations' => $locations,
                 'vendors' => $vendors,
+                'selectedCategory' => $selectedCategory,
                 'detailAsset' => $detailAsset,
             ]
         );

@@ -23,29 +23,61 @@
         </div>
 
 
-        @can('assets.create')
+        <div class="flex flex-wrap items-center gap-3">
+
+            @can('assets.import')
+                <a
+                    href="{{ route('assets.import.index') }}"
+                    class="inline-flex items-center justify-center gap-2
+                        rounded-lg border border-blue-200 bg-white px-4 py-2.5
+                        text-sm font-semibold text-[#225199]
+                        shadow-sm transition hover:bg-blue-50"
+                >
+                    <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true"
+                    >
+                        <path d="M12 16V4"/>
+                        <path d="m7 9 5-5 5 5"/>
+                        <path d="M4 16v4h16v-4"/>
+                    </svg>
+
+                    Import HP CSV
+                </a>
+            @endcan
+
+            @can('assets.create')
                 <button
                     type="button"
                     wire:click="create"
-                    class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                    class="inline-flex items-center justify-center gap-2
+                        rounded-lg bg-[#225199] px-4 py-2.5
+                        text-sm font-semibold text-white shadow-sm
+                        transition hover:bg-[#193f7a]"
                 >
+                    <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true"
+                    >
+                        <path d="M12 5v14"/>
+                        <path d="M5 12h14"/>
+                    </svg>
 
-                <svg
-                    width="17"
-                    height="17"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                >
-                    <path d="M12 5v14"/>
-                    <path d="M5 12h14"/>
-                </svg>
+                    Add Asset
+                </button>
+            @endcan
 
-                Add Asset
-
-            </button>
-        @endcan
+        </div>
 
     </div>
 
@@ -297,7 +329,7 @@
                         </label>
 
                         <select
-                            wire:model="category_id"
+                            wire:model.live="category_id"
                             class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                         >
 
@@ -314,6 +346,14 @@
                             @endforeach
 
                         </select>
+
+                        @if ($selectedCategory?->default_rental_years)
+                            <p class="mt-1.5 text-xs text-blue-600">
+                                Masa sewa default:
+                                {{ $selectedCategory->default_rental_years }} tahun.
+                                Tanggal akhir dihitung otomatis setelah tanggal mulai diisi.
+                            </p>
+                        @endif
 
                         @error('category_id')
 
@@ -583,7 +623,7 @@
 
                         <input
                             type="date"
-                            wire:model="rental_start_date"
+                            wire:model.live="rental_start_date"
                             class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                         >
 
@@ -595,7 +635,7 @@
                     <div>
 
                         <label class="mb-1.5 block text-xs font-semibold text-slate-700">
-                            Rental End
+                            Rental End (Otomatis)
                         </label>
 
                         <input
@@ -606,8 +646,9 @@
 
                         @error('rental_end_date')
 
-                            <p class="mt-1 text-xs text-red-500">
-                                {{ $message }}
+                            <p class="mt-1.5 text-xs text-slate-500">
+                                Tanggal akhir mengikuti masa sewa default kategori.
+                                Jika kontrak berbeda, tanggal dapat disesuaikan.
                             </p>
 
                         @enderror
