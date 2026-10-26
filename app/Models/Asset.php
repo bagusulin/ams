@@ -28,6 +28,20 @@ class Asset extends Model
         'rental_end_date',
         'rental_cost',
         'notes',
+        'area_id',
+        'area_name',
+        'branch_code',
+        'branch_unit',
+        'mekaar_user_id',
+        'msisdn',
+        'imei',
+        'initial_mekaar',
+        'tagging_number',
+        'rental_description',
+        'phone_location_type',
+        'additional_notes',
+        'real_location',
+        'device_type',
     ];
 
     protected $casts = [

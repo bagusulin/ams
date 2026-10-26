@@ -154,7 +154,10 @@ class RolePermissionSeeder extends Seeder
         // Hak akses operasional PPI mengikuti IT,
         // kecuali akses melihat daftar user.
         $ppiPermissions = array_values(
-            array_diff($itPermissions, ['users.view'])
+            array_diff(
+                $itPermissions,
+                ['users.view', 'assets.import']
+            )
         );
 
         $ppi->syncPermissions($ppiPermissions);

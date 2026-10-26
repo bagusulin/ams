@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AssetQrController;
+use App\Http\Controllers\AssetCsvImportController;
 
 
 Route::get('/', function () {
@@ -34,6 +35,10 @@ Route::view('/vendors', 'vendors.index')
 Route::view('/assets', 'assets.index')
     ->middleware(['auth', 'can:assets.view'])
     ->name('assets.index');
+
+Route::view('/users', 'users.index')
+    ->middleware(['auth', 'can:users.view'])
+    ->name('users.index');
 
 Route::view('/assignments', 'assignments.index')
     ->middleware(['auth', 'can:assignments.view'])
@@ -121,6 +126,18 @@ Route::middleware(['auth'])->group(function () {
         AssetQrController::class,'printLabel',])
         ->middleware(['auth', 'can:asset-qr.view'])
         ->name('asset-qr.print');
+
+    Route::get('/assets/import-hp', [AssetCsvImportController::class,'index',])
+        ->middleware(['auth', 'can:assets.import'])
+        ->name('assets.import.index');
+
+    Route::post('/assets/import-hp', [AssetCsvImportController::class,'store',])
+        ->middleware(['auth', 'can:assets.import'])
+        ->name('assets.import.store');
+
+    Route::get('/assets/import-hp/template', [AssetCsvImportController::class,'template',])
+        ->middleware(['auth', 'can:assets.import'])
+        ->name('assets.import.template');
 });
 
 
