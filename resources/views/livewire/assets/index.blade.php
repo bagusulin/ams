@@ -1,4 +1,13 @@
-<div>
+<div
+x-data
+    x-on:scroll-to-asset-form.window="
+        $nextTick(() => {
+            document.getElementById('asset-form')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        })
+    ">
 
     <!-- ===================================================== -->
     <!-- HEADER -->
@@ -239,7 +248,7 @@
         || ($editingId && auth()->user()->can('assets.update'))
     ))
 
-        <div class="mb-5 rounded-xl border border-blue-100 bg-white p-5 shadow-sm">
+        <div class="mb-5 scroll-mt-24 rounded-xl border border-blue-100 bg-white p-5 shadow-sm">
 
             <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
 
@@ -757,6 +766,14 @@
                             Asset
                         </th>
 
+                        <th class="whitespace-nowrap px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            UserID
+                        </th>
+
+                        <th class="whitespace-nowrap px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            MSISDN
+                        </th>
+
                         <th class="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             Category
                         </th>
@@ -846,6 +863,15 @@
 
                             </td>
 
+                            {{-- USER ID --}}
+                            <td class="whitespace-nowrap px-5 py-4 text-xs text-slate-700">
+                                {{ $asset->mekaar_user_id ?: '-' }}
+                            </td>
+
+                            {{-- MSISDN --}}
+                            <td class="whitespace-nowrap px-5 py-4 text-xs font-medium text-slate-700">
+                                {{ $asset->msisdn ?: '-' }}
+                            </td>
 
                             <!-- CATEGORY -->
 
@@ -1035,7 +1061,7 @@
                         <tr>
 
                             <td
-                                colspan="7"
+                                colspan="9"
                                 class="px-5 py-14 text-center"
                             >
 

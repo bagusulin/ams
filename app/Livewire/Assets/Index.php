@@ -269,6 +269,7 @@ class Index extends Component
 
         $this->resetForm();
         $this->showForm = true;
+        $this->dispatch('scroll-to-asset-form');
     }
 
 
@@ -337,6 +338,8 @@ class Index extends Component
         $this->resetValidation();
 
         $this->showForm = true;
+
+        $this->dispatch('scroll-to-asset-form');
     }
 
 
@@ -630,27 +633,13 @@ class Index extends Component
 
                     $query->where(function ($query) use ($search) {
 
-                        $query
-                            ->where(
-                                'asset_code',
-                                'like',
-                                $search
-                            )
-                            ->orWhere(
-                                'brand',
-                                'like',
-                                $search
-                            )
-                            ->orWhere(
-                                'model',
-                                'like',
-                                $search
-                            )
-                            ->orWhere(
-                                'serial_number',
-                                'like',
-                                $search
-                            );
+                            $query
+                                ->where('asset_code', 'like', $search)
+                                ->orWhere('brand', 'like', $search)
+                                ->orWhere('model', 'like', $search)
+                                ->orWhere('serial_number', 'like', $search)
+                                ->orWhere('mekaar_user_id', 'like', $search)
+                                ->orWhere('msisdn', 'like', $search);
 
                     });
                 }

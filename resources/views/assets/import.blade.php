@@ -20,24 +20,88 @@
         </p>
     </div>
 
+    
     @if (session('import_result'))
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-            <p class="font-semibold">
-                Import berhasil. {{ session('import_result.imported') }} aset HP ditambahkan.
-            </p>
+        @php($result = session('import_result'))
 
-            @if (! empty(session('import_result.warnings')))
-                <div class="mt-3">
-                    <p class="font-semibold">Penyesuaian berdasarkan referensi cabang:</p>
-                    <ul class="mt-1 list-inside list-disc space-y-1">
-                        @foreach (session('import_result.warnings') as $warning)
+        <div class="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+
+            <div>
+                <p class="font-semibold">
+                    @if (($result['imported'] ?? 0) > 0)
+                        Import selesai diproses.
+                    @else
+                        Tidak ada aset baru yang ditambahkan.
+                    @endif
+                </p>
+
+                <p class="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                    Baris duplikat dan baris yang tidak valid dilewati.
+                    Baris lain yang valid tetap diproses.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-emerald-200 bg-white p-3 dark:border-emerald-900 dark:bg-slate-900">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Berhasil ditambahkan
+                    </p>
+
+                    <p class="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                        {{ number_format($result['imported'] ?? 0) }}
+                    </p>
+                </div>
+
+                <div class="rounded-lg border border-amber-200 bg-white p-3 dark:border-amber-900 dark:bg-slate-900">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Baris dilewati
+                    </p>
+
+                    <p class="mt-1 text-2xl font-bold text-amber-700 dark:text-amber-300">
+                        {{ number_format($result['skipped_count'] ?? 0) }}
+                    </p>
+                </div>
+            </div>
+
+            @if (! empty($result['skipped_rows']))
+                <div>
+                    <p class="font-semibold">
+                        Detail baris yang dilewati:
+                    </p>
+
+                    <ul class="mt-2 max-h-72 space-y-1 overflow-y-auto rounded-lg border border-amber-200 bg-white p-3 text-xs text-slate-700 dark:border-amber-900 dark:bg-slate-900 dark:text-slate-200">
+                        @foreach ($result['skipped_rows'] as $skippedRow)
+                            <li>{{ $skippedRow }}</li>
+                        @endforeach
+                    </ul>
+
+                    @if (! empty($result['skipped_more']))
+                        <p class="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                            Detail yang ditampilkan dibatasi sampai 50 baris.
+                            Jumlah total baris yang dilewati:
+                            {{ $result['skipped_count'] }}.
+                        </p>
+                    @endif
+                </div>
+            @endif
+
+            @if (! empty($result['warnings']))
+                <div>
+                    <p class="font-semibold">
+                        Penyesuaian berdasarkan referensi cabang:
+                    </p>
+
+                    <ul class="mt-2 list-inside list-disc space-y-1 text-xs">
+                        @foreach ($result['warnings'] as $warning)
                             <li>{{ $warning }}</li>
                         @endforeach
                     </ul>
                 </div>
             @endif
+
         </div>
     @endif
+
 
     @if ($errors->any())
         <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
@@ -93,8 +157,9 @@
                     <ul class="mt-1 list-inside list-disc">
                         <li>Kolom No diabaikan.</li>
                         <li>Kode cabang dicocokkan dengan referensi Nama dan wilayah Mekaar.</li>
-                        <li>Tagging dan IMEI yang sudah ada akan ditolak.</li>
-                        <li>Jika ditemukan error, seluruh import dibatalkan; tidak ada baris yang disimpan.</li>
+                        <li>Tagging dan IMEI yang sudah ada akan dilewati.</li>
+                        <li>Baris duplikat atau tidak valid dilewati; baris valid lainnya tetap diimpor.</li>
+                        <li>Jika struktur CSV salah atau terjadi kegagalan transaksi database, import dibatalkan untuk menjaga konsistensi data.</li>
                     </ul>
                 </div>
 

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Carbon;
+use App\Models\AssetAssignment;
 
 class AssetCsvImportController extends Controller
 {
@@ -167,7 +168,7 @@ class AssetCsvImportController extends Controller
         }
 
         $records = [];
-        $errors = [];
+        $skippedRows = [];
         $normalizationWarnings = [];
         $seenTags = [];
         $seenImeis = [];
@@ -192,6 +193,7 @@ class AssetCsvImportController extends Controller
                 }
             }
 
+            
             $requiredValues = [
                 'kodecabang' => 'kodecabang',
                 'userid' => 'UserID',
@@ -204,13 +206,19 @@ class AssetCsvImportController extends Controller
                 'jenishp' => 'Jenis HP',
             ];
 
+            // Validasi dilakukan per baris, bukan untuk membatalkan seluruh file.
+            $rowIssues = [];
+
             foreach ($requiredValues as $key => $label) {
                 if (($row[$key] ?? '') === '') {
-                    $errors[] = "Baris {$rowNumber}: kolom {$label} wajib diisi.";
+                    $rowIssues[] = "Kolom {$label} wajib diisi.";
                 }
             }
 
-            if (count($errors) > 0 && ! isset($row['kodecabang'])) {
+            if ($rowIssues !== []) {
+                $skippedRows[] = "Baris {$rowNumber} dilewati: "
+                    . implode(' ', $rowIssues);
+
                 continue;
             }
 
@@ -218,18 +226,25 @@ class AssetCsvImportController extends Controller
             $branchMapping = $branchMappings[$branchCode] ?? null;
 
             if (! is_array($branchMapping)) {
-                $errors[] = "Baris {$rowNumber}: kodecabang '{$branchCode}' tidak ada di referensi Nama dan wilayah Mekaar.";
+                $skippedRows[] =
+                    "Baris {$rowNumber} dilewati: kodecabang '{$branchCode}' "
+                    . "tidak ada di referensi Nama dan wilayah Mekaar.";
+
                 continue;
             }
 
             $realLocation = trim($row['reallokasihp'] ?? '');
+
             $realLocationMapping = $this->findBranchByIdentifier(
                 $realLocation,
                 $branchMappings
             );
 
             if (! $realLocationMapping) {
-                $errors[] = "Baris {$rowNumber}: Real lokasi HP '{$realLocation}' tidak ditemukan di referensi cabang.";
+                $skippedRows[] =
+                    "Baris {$rowNumber} dilewati: Real lokasi HP "
+                    . "'{$realLocation}' tidak ditemukan di referensi cabang.";
+
                 continue;
             }
 
@@ -237,28 +252,58 @@ class AssetCsvImportController extends Controller
             $imei = trim($row['imei'] ?? '');
             $description = trim($row['keterangan'] ?? '');
             $deviceType = trim($row['jenishp'] ?? '');
+
             $rentalStartDate = $this->extractRentalStartDate($description);
 
             if (! $rentalStartDate) {
-                $suffix = substr($description, -7);
-                $errors[] = "Baris {$rowNumber}: tanggal mulai sewa tidak dapat dibaca dari 7 karakter terakhir kolom Keterangan ('{$suffix}'). Contoh: PenggantianMTMNov2024.";
+                $suffix = substr(trim($description), -7);
+
+                $skippedRows[] =
+                    "Baris {$rowNumber} dilewati: tanggal mulai sewa "
+                    . "tidak dapat dibaca dari '{$suffix}'. "
+                    . "Contoh: PenggantianMTMNov2024.";
+
                 continue;
             }
 
+            // Periksa duplikasi antarbaris dalam file CSV.
+            $duplicateReasons = [];
+
+            if (
+                $taggingNumber !== ''
+                && isset($seenTags[$taggingNumber])
+            ) {
+                $duplicateReasons[] =
+                    "No Tagging '{$taggingNumber}' duplikat dengan baris "
+                    . "{$seenTags[$taggingNumber]} dalam file.";
+            }
+
+            if (
+                $imei !== ''
+                && isset($seenImeis[$imei])
+            ) {
+                $duplicateReasons[] =
+                    "IMEI '{$imei}' duplikat dengan baris "
+                    . "{$seenImeis[$imei]} dalam file.";
+            }
+
+            // Satu baris duplikat hanya dilewati.
+            // Baris lainnya tetap bisa diproses.
+            if ($duplicateReasons !== []) {
+                $skippedRows[] =
+                    "Baris {$rowNumber} dilewati: "
+                    . implode(' ', $duplicateReasons);
+
+                continue;
+            }
+
+            // Tandai identitas untuk memeriksa baris berikutnya.
             if ($taggingNumber !== '') {
-                if (isset($seenTags[$taggingNumber])) {
-                    $errors[] = "Baris {$rowNumber}: No Tagging '{$taggingNumber}' duplikat dengan baris {$seenTags[$taggingNumber]} dalam file.";
-                } else {
-                    $seenTags[$taggingNumber] = $rowNumber;
-                }
+                $seenTags[$taggingNumber] = $rowNumber;
             }
 
             if ($imei !== '') {
-                if (isset($seenImeis[$imei])) {
-                    $errors[] = "Baris {$rowNumber}: IMEI '{$imei}' duplikat dengan baris {$seenImeis[$imei]} dalam file.";
-                } else {
-                    $seenImeis[$imei] = $rowNumber;
-                }
+                $seenImeis[$imei] = $rowNumber;
             }
 
             $inputInitial = trim($row['initialmekaar'] ?? '');
@@ -293,20 +338,24 @@ class AssetCsvImportController extends Controller
 
         fclose($handle);
 
-        if ($records === []) {
-            $errors[] = 'Tidak ada baris data yang dapat diimpor.';
+        
+        if ($records === [] && $skippedRows === []) {
+            return back()->withErrors([
+                'file' => 'CSV tidak berisi baris data yang dapat diproses.',
+            ]);
         }
 
-        // Periksa duplikasi terhadap aset aktif maupun aset yang diarsipkan.
-        $tagNumbers = array_values(array_filter(
+        // Cari tagging dan IMEI yang sudah ada,
+        // termasuk aset yang telah diarsipkan (soft deleted).
+        $tagNumbers = array_values(array_unique(array_filter(
             array_column($records, 'asset_code'),
             fn ($value) => $value !== ''
-        ));
+        )));
 
-        $imeis = array_values(array_filter(
+        $imeis = array_values(array_unique(array_filter(
             array_column($records, 'imei'),
             fn ($value) => $value !== ''
-        ));
+        )));
 
         $existingTags = $tagNumbers === []
             ? []
@@ -333,42 +382,79 @@ class AssetCsvImportController extends Controller
         $existingSerialNumbers = array_flip($existingSerialNumbers);
         $existingImeis = array_flip($existingImeis);
 
+        // Sisihkan baris yang sudah ada di database,
+        // tetapi pertahankan baris lain yang valid.
+        $recordsToImport = [];
+
         foreach ($records as $record) {
             $row = $record['row_number'];
+            $duplicateReasons = [];
 
             if (isset($existingTags[$record['asset_code']])) {
-                $errors[] = "Baris {$row}: No Tagging '{$record['asset_code']}' sudah ada di database.";
+                $duplicateReasons[] =
+                    "No Tagging '{$record['asset_code']}' sudah ada di database.";
             }
 
             if (isset($existingSerialNumbers[$record['imei']])) {
-                $errors[] = "Baris {$row}: IMEI '{$record['imei']}' sudah terdaftar sebagai serial number.";
+                $duplicateReasons[] =
+                    "IMEI '{$record['imei']}' sudah terdaftar sebagai serial number.";
             }
 
             if (isset($existingImeis[$record['imei']])) {
-                $errors[] = "Baris {$row}: IMEI '{$record['imei']}' sudah ada di kolom IMEI database.";
+                $duplicateReasons[] =
+                    "IMEI '{$record['imei']}' sudah ada di kolom IMEI database.";
             }
+
+            if ($duplicateReasons !== []) {
+                $skippedRows[] =
+                    "Baris {$row} dilewati: "
+                    . implode(' ', $duplicateReasons);
+
+                continue;
+            }
+
+            $recordsToImport[] = $record;
         }
 
-        if ($errors !== []) {
-            return back()->withErrors([
-                'file' => "Import dibatalkan; tidak ada aset yang disimpan.\n"
-                    . implode("\n", array_slice(array_unique($errors), 0, 30))
-                    . (count($errors) > 30 ? "\nMasih ada error lainnya. Perbaiki file lalu impor ulang." : ''),
-            ]);
+        $records = $recordsToImport;
+        $skippedRows = array_values(array_unique($skippedRows));
+
+        // Kalau semuanya duplikat atau tidak valid,
+        // tetap kembalikan laporan hasil import tanpa error fatal.
+        if ($records === []) {
+            return redirect()
+                ->route('assets.import.index')
+                ->with('import_result', [
+                    'imported' => 0,
+                    'skipped_count' => count($skippedRows),
+                    'skipped_rows' => array_slice($skippedRows, 0, 50),
+                    'skipped_more' => count($skippedRows) > 50,
+                    'warnings' => array_values($normalizationWarnings),
+                ]);
         }
 
+        // Pastikan kategori tersedia sebelum membaca masa sewanya.
         $category = AssetCategory::query()
             ->where('code', 'HPN')
             ->where('is_active', true)
             ->first();
 
-            if (! $category->default_rental_years) {
-                return back()->withErrors([
-                    'file' =>
-                        'Masa sewa default kategori Handphone belum diatur. '
-                        . 'Buka Asset Category dan tentukan masa sewanya terlebih dahulu.',
-                ]);
-            }
+        if (! $category) {
+            return back()->withErrors([
+                'file' =>
+                    'Kategori Handphone dengan kode HPN belum tersedia '
+                    . 'atau tidak aktif. Periksa Master Kategori terlebih dahulu.',
+            ]);
+        }
+
+        if (! $category->default_rental_years) {
+            return back()->withErrors([
+                'file' =>
+                    'Masa sewa default kategori Handphone belum diatur. '
+                    . 'Buka Asset Category dan tentukan masa sewanya terlebih dahulu.',
+            ]);
+        }
+
 
         if (! $category) {
             return back()->withErrors([
@@ -445,7 +531,7 @@ class AssetCsvImportController extends Controller
                         'brand' => $brand,
                         'model' => $model,
                         'serial_number' => $record['imei'],
-                        'status' => 'available',
+                        'status' => 'assigned',
                         'condition' => 'good',
                         'purchase_date' => null,
                         'rental_start_date' => $record['rental_start_date'],
@@ -471,6 +557,33 @@ class AssetCsvImportController extends Controller
                         'device_type' => $deviceType,
                     ]);
 
+                    // Buat assignment aktif berdasarkan Real lokasi HP.
+                    $assignmentNotes = [
+                        'Assignment otomatis dari import HP CSV.',
+                        'Real lokasi HP: ' . $record['real_location'],
+                        'UserID Mekaar: ' . $record['mekaar_user_id'],
+                        'MSISDN: ' . $record['msisdn'],
+                        'Tanggal mulai sewa: ' . $record['rental_start_date'],
+                    ];
+
+                    $assignment = AssetAssignment::create([
+                        'asset_id' => $asset->id,
+
+                        // UserID CSV bukan ID user login AMS.
+                        'user_id' => null,
+
+                        // Lokasi sudah dicocokkan ke referensi cabang.
+                        'location_id' => $location->id,
+
+                        // Tanggal penempatan tercatat ketika import.
+                        // Tanggal mulai kontrak tetap disimpan di tabel assets.
+                        'assigned_at' => now()->toDateString(),
+
+                        'returned_at' => null,
+
+                        'notes' => implode("\n", $assignmentNotes),
+                    ]);
+
                     AssetHistory::create([
                         'asset_id' => $asset->id,
                         'user_id' => $user->id,
@@ -482,6 +595,28 @@ class AssetCsvImportController extends Controller
                             'imei' => $asset->imei,
                             'msisdn' => $asset->msisdn,
                             'branch_code' => $asset->branch_code,
+                            'import_source' => 'CSV',
+                        ],
+                    ]);
+
+                    AssetHistory::create([
+                        'asset_id' => $asset->id,
+                        'user_id' => $user->id,
+                        'action' => 'assigned',
+                        'description' =>
+                            'HP otomatis ditempatkan ke lokasi '
+                            . $record['real_location']
+                            . ' melalui import CSV.',
+                        'old_values' => [
+                            'status' => 'available',
+                        ],
+                        'new_values' => [
+                            'status' => 'assigned',
+                            'assignment_id' => $assignment->id,
+                            'location_id' => $location->id,
+                            'real_location' => $record['real_location'],
+                            'mekaar_user_id' => $record['mekaar_user_id'],
+                            'msisdn' => $record['msisdn'],
                             'import_source' => 'CSV',
                         ],
                     ]);
@@ -499,6 +634,9 @@ class AssetCsvImportController extends Controller
             ->route('assets.import.index')
             ->with('import_result', [
                 'imported' => count($records),
+                'skipped_count' => count($skippedRows),
+                'skipped_rows' => array_slice($skippedRows, 0, 50),
+                'skipped_more' => count($skippedRows) > 50,
                 'warnings' => array_values($normalizationWarnings),
             ]);
     }

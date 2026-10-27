@@ -487,7 +487,7 @@ class ReportController extends Controller
 
     public function rentalExpiry(Request $request)
     {
-        Gate::authorize('reports.rentals.view');
+        Gate::authorize('reports.rental-expiry.view');
         $filters = $this->validateRentalExpiryFilters($request);
 
         $bucket = $filters['bucket'] ?? 'all';
@@ -556,7 +556,7 @@ class ReportController extends Controller
 
     public function exportRentalExpiryExcel(Request $request)
     {
-        Gate::authorize('reports.rentals.export');
+        Gate::authorize('reports.rental-expiry.export');
         $filters = $this->validateRentalExpiryFilters($request);
 
         return Excel::download(
@@ -567,7 +567,7 @@ class ReportController extends Controller
 
     public function exportRentalExpiryPdf(Request $request)
     {
-        Gate::authorize('reports.rentals.export');
+        Gate::authorize('reports.rental-expiry.export');
         $filters = $this->validateRentalExpiryFilters($request);
 
         $assets = RentalExpiryQuery::build($filters)

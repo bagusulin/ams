@@ -352,13 +352,27 @@
 
                             <td class="px-5 py-4">
 
-                                <p class="text-xs font-semibold text-slate-700">
-                                    {{ $assignment->user?->name }}
-                                </p>
+                                @if ($assignment->user)
+                                    <p class="text-xs font-semibold text-slate-700">
+                                        {{ $assignment->user->name }}
+                                    </p>
 
-                                <p class="text-[11px] text-slate-400">
-                                    {{ $assignment->user?->email }}
-                                </p>
+                                    <p class="text-[11px] text-slate-400">
+                                        {{ $assignment->user->email }}
+                                    </p>
+                                @else
+                                    <p class="text-xs font-semibold text-blue-700">
+                                        Penempatan Unit Mekaar
+                                    </p>
+
+                                    <p class="mt-1 text-[11px] text-slate-500">
+                                        UserID: {{ $assignment->asset?->mekaar_user_id ?: '-' }}
+                                    </p>
+
+                                    <p class="text-[11px] text-slate-500">
+                                        MSISDN: {{ $assignment->asset?->msisdn ?: '-' }}
+                                    </p>
+                                @endif
 
                             </td>
 
